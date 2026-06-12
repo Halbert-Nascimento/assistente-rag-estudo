@@ -84,6 +84,15 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   remove o arquivo salvo de `docs/`.
 - **Arquivos:** `api.py`, `frontend/views.jsx`
 
+### BUG-009 — Upload aceita apenas 1 arquivo por vez   [status: resolvido em 12/06/2026 | prioridade: media]
+- **Sintoma:** usuario seleciona 2 documentos no dialogo, mas apenas 1 e enviado
+  (o log do servidor mostra um unico POST /api/upload).
+- **Causa raiz:** o `<input type="file">` da DocumentosView nao tem o atributo
+  `multiple`; o dialogo do navegador so permite selecionar um arquivo.
+- **Correcao:** atributo `multiple` no input; envio sequencial de cada arquivo;
+  card de resultado lista cada arquivo com sucesso (chunks) ou erro (motivo).
+- **Arquivos:** `frontend/views.jsx`
+
 ---
 
 ## Melhorias

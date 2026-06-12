@@ -384,26 +384,35 @@ function DocumentosView({ temas, onIndexed }) {
   }
 
   async function enviarArquivo(e) {
-    const file = e.target.files && e.target.files[0];
+    // Aceita VARIOS arquivos (BUG-009): envia um a um e agrega o resultado
+    const files = Array.from(e.target.files || []);
     e.target.value = ""; // permite reenviar o mesmo arquivo
-    if (!file) return;
+    if (files.length === 0) return;
 
     setEnviando(true);
     setResultado(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("materia", uploadMateria);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const data = await res.json();
-      setResultado(data);
-      fetchDocs();
-      onIndexed && onIndexed();
-    } catch {
-      setResultado({ ok: false, erro: "Erro ao enviar o arquivo." });
-    } finally {
-      setEnviando(false);
+    const porArquivo = [];
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("materia", uploadMateria);
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        const data = await res.json();
+        porArquivo.push({
+          arquivo: file.name,
+          ok: !!data.ok,
+          chunks: data.chunks || 0,
+          erro: data.erro || null,
+        });
+      } catch {
+        porArquivo.push({ arquivo: file.name, ok: false, erro: "Falha de conexão com o servidor." });
+      }
     }
+    setResultado({ ok: porArquivo.every((r) => r.ok), multi: porArquivo });
+    fetchDocs();
+    onIndexed && onIndexed();
+    setEnviando(false);
   }
 
   const d0 = dados || { arquivos: [], total: 0, indexados: 0, chunks: 0 };
@@ -453,7 +462,32 @@ function DocumentosView({ temas, onIndexed }) {
             style={{ color: resultado.ok ? "var(--high)" : "var(--low)", flex: "none" }}
           />
           <div>
-            {resultado.ok ? (
+            {resultado.multi ? (
+              /* Resultado de upload multiplo: status por arquivo (BUG-009) */
+              <>
+                <b>
+                  Upload concluído — {resultado.multi.filter((r) => r.ok).length}/
+                  {resultado.multi.length} arquivo(s) processado(s).
+                </b>
+                {resultado.multi.map((r, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      fontSize: 13,
+                      marginTop: 3,
+                      color: r.ok ? "var(--ink-2)" : "var(--low)",
+                    }}
+                  >
+                    {r.ok ? "✓" : "✗"} <b>{r.arquivo}</b>
+                    {r.ok
+                      ? r.chunks > 0
+                        ? ` — ${r.chunks} chunks indexados`
+                        : " — já estava indexado"
+                      : ` — ${r.erro}`}
+                  </div>
+                ))}
+              </>
+            ) : resultado.ok ? (
               <>
                 <b>
                   {resultado.arquivo_salvo
@@ -537,6 +571,7 @@ function DocumentosView({ temas, onIndexed }) {
             ref={fileRef}
             type="file"
             accept=".pdf,.md,.txt"
+            multiple
             style={{ display: "none" }}
             onChange={enviarArquivo}
           />

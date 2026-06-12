@@ -201,3 +201,6 @@ O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentado
   falha e removido de docs/ e retorna 422 com o motivo.
 - [x] **FEAT-006 (aberto):** OCR para PDFs imagem-only registrado no BACKLOG
   (ex: Manual de Formatacao v5.0.pdf — sem texto extraivel, recusa correta).
+- [x] **BUG-009 Upload de 1 arquivo so:** o input nao tinha `multiple` — selecionar
+  2 documentos enviava apenas 1. Agora aceita varios, envia sequencialmente e o
+  card de resultado mostra o status de cada arquivo (chunks ou motivo do erro).
