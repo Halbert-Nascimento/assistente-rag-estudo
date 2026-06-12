@@ -7,3 +7,5 @@ streamlit
 pypdf
 python-dotenv
 ollama
+fastapi
+uvicorn[standard]

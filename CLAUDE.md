@@ -72,3 +72,84 @@ Primeira rodada do `eval.py --full` (com Ollama + GPU) revelou 6/8 e 3 bugs no r
 - [x] **Limiar 0.68 revalidado** apos recontextualizacao: in-scope 0.727–0.875, fora 0.539–0.630.
 - [x] **Resultado final (`eval.py --full`): 8/8 in-scope + 2/2 recusas (100%).** Latencia media 2.6 s, recusa em ~30 ms. Banco com 62 chunks. Testes: 20/20 (2 novos de regressao).
 - [x] **docker-compose com GPU NVIDIA** (`deploy.resources`) e volume `ollama` compativel com o container standalone do usuario. README com 3 opcoes de execucao e instrucoes de uso da interface.
+
+## Fase 8: Migracao para Interface React (🔄 Planejada — branch `nova-interface`)
+
+Substituicao da interface Streamlit (`app.py`) pela interface React prototipatada em `interface/`.
+Executar na branch `nova-interface` (nunca no main ate estar completa).
+
+### Etapa 0 — Documentar plano no CLAUDE.md (este item) ✅
+### Etapa 1 — Criar branch git
+```
+git checkout -b nova-interface
+```
+
+### Etapa 2 — Reorganizar arquivos de interface
+- Renomear `interface/` → `frontend/`
+- Remover `frontend/data.js` (dados mock, substituido por API real)
+- Adicionar `data/` ao `.gitignore` (pasta de persistencia em runtime)
+
+### Etapa 3 — Criar `api.py` (FastAPI — substitui Streamlit como servidor)
+Endpoints a implementar (backend usa `src/loader.py`, `src/embedder.py`, `src/chain.py` sem modificacao):
+- `GET  /`                  → serve `frontend/index.html`
+- `GET  /frontend/{file}`   → arquivos estaticos CSS/JS
+- `GET  /api/status`        → `{ chromadb, ollama, docs_indexados, modelo, pronto }`
+- `POST /api/indexar`       → `{ ok, chunks, arquivos, falhas, arquivos_com_erro }`
+- `POST /api/chat`          → `{ resposta, fontes:[{doc,sim}], sim, recusou }`
+- `GET  /api/documentos`    → `{ total, indexados, chunks, arquivos:[{nome,tipo,status,chunks}] }`
+- `GET  /api/stats`         → `{ total_perguntas, confianca_media, historico_7dias, distribuicao }`
+- `GET  /api/historico`     → lista de conversas salvas
+- `GET  /api/historico/{id}`→ mensagens de uma conversa
+Persistencia simples: `data/stats.json` e `data/historico.json` (atualizados a cada `/api/chat`).
+
+### Etapa 4 — Criar `frontend/chat.jsx` (componente faltante)
+ChatView com: input + lista de mensagens + SourceCard por resposta + ConfidenceMeter.
+Integra via `fetch('/api/chat', {method:'POST', body: JSON.stringify({pergunta})})`.
+Recebe props `seed` (pergunta inicial da HomeView) e `onNewChat`.
+
+### Etapa 5 — Atualizar `frontend/views.jsx`
+Substituir `DATA.*` por `fetch('/api/...')` com `useEffect` em cada view:
+- `HomeView`       → `GET /api/stats` + `GET /api/historico`
+- `DocumentosView` → `GET /api/documentos` + botao `POST /api/indexar` com feedback por arquivo
+- `DesempenhoView` → `GET /api/stats`
+- `HistoricoView`  → `GET /api/historico`
+- `TemasView`      → derivar temas de `/api/documentos` (agrupar por prefixo do nome do arquivo)
+
+### Etapa 6 — Atualizar `frontend/app.jsx`
+- Adicionar `useEffect` para `GET /api/status` ao montar (atualiza badge do topbar)
+- Importar `ChatView` de `chat.jsx` (ja referenciado, faltava o arquivo)
+- Remover import de `data.js`
+
+### Etapa 7 — Atualizar `frontend/index.html`
+- Remover `<script src="data.js">`
+- Adicionar `<script src="chat.jsx" type="text/babel">`
+- Manter CDN React + Babel (sem bundler)
+
+### Etapa 8 — Atualizar infra
+- `requirements.txt`: adicionar `fastapi` e `uvicorn[standard]`
+- `Dockerfile`: trocar `streamlit run app.py --server.port=8501` por `uvicorn api:app --host 0.0.0.0 --port 8000`
+- `docker-compose.yml`: porta `8000:8000`, container renomeado `rag-app`
+
+### Verificacao final
+```bash
+uvicorn api:app --reload --port 8000     # dev local
+python tests/run_tests.py                # backend Python intacto (20/20)
+# Acessar http://localhost:8000 e testar: status, indexar, chat, historico
+docker-compose up -d --build             # teste em container
+```
+
+### Features adicionadas vs Streamlit atual
+| Feature nova | Origem |
+|---|---|
+| Historico persistente entre sessoes | `data/historico.json` |
+| Graficos de desempenho por dia | `data/stats.json` |
+| Visualizacao por temas/aulas | derivado dos nomes dos arquivos |
+| Dashboard home com sugestoes | HomeView + dados de stats |
+
+### Features do Streamlit garantidas na nova interface
+| Feature | Como preservada |
+|---|---|
+| Erros por arquivo na indexacao | coluna de status em DocumentosView |
+| Status ChromaDB + Ollama em tempo real | badge no topbar via `/api/status` |
+| Recusa deterministica (sem LLM) | logica permanece em `src/chain.py` |
+| Limpar conversa | botao "Nova conversa" em `app.jsx` |
