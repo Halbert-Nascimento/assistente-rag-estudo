@@ -1,0 +1,103 @@
+{
+  "versao": "1.0",
+  "descricao": "10 perguntas de avaliacao do assistente RAG baseadas nas aulas 06-09 de Inteligencia Artificial. Cobre 3 niveis de dificuldade e inclui 2 perguntas fora do escopo para testar a capacidade de recusa.",
+  "total_perguntas": 10,
+  "distribuicao": {
+    "facil": 3,
+    "medio": 3,
+    "dificil": 2,
+    "fora_do_escopo": 2
+  },
+  "perguntas": [
+    {
+      "id": 1,
+      "pergunta": "O que e o Metodo do Cotovelo e para que ele e usado no K-Means?",
+      "dificuldade": "facil",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-06-aprendizado-nao-supervisionado.md",
+      "palavras_chave": ["cotovelo", "clusters", "k-means", "ideal", "grafico"],
+      "gabarito_resumido": "O Metodo do Cotovelo testa progressivamente de 1 a N clusters e analisa o grafico resultante para localizar a 'dobra', que indica a quantidade ideal de clusters para os dados."
+    },
+    {
+      "id": 2,
+      "pergunta": "Por que e obrigatorio aplicar o StandardScaler antes de rodar o K-Means?",
+      "dificuldade": "facil",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-06-aprendizado-nao-supervisionado.md",
+      "palavras_chave": ["escala", "grandezas", "esmag", "enviesado", "numeros"],
+      "gabarito_resumido": "O K-Means usa distancia euclidiana, entao variaveis com grandezas muito diferentes (ex: renda de 136.000 vs idade de 18) distorcem o calculo. O StandardScaler coloca todas as variaveis na mesma escala matematica, impedindo que numeros massivos esmaguem as grandezas menores."
+    },
+    {
+      "id": 3,
+      "pergunta": "Quais sao os 4 pilares estruturais do Reinforcement Learning apresentados na aula?",
+      "dificuldade": "facil",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-07-reinforcement-learning.md",
+      "palavras_chave": ["agente", "ambiente", "estado", "acao"],
+      "gabarito_resumido": "Os 4 pilares sao: Agente (investidor), Ambiente (mercado financeiro), Estado (se a acao subiu ou desceu) e Acao (comprar, vender ou manter)."
+    },
+    {
+      "id": 4,
+      "pergunta": "O que e o Silhouette Score e como interpretar seus valores?",
+      "dificuldade": "medio",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-06-aprendizado-nao-supervisionado.md",
+      "palavras_chave": ["silhouette", "coesao", "separacao", "-1", "+1", "qualidade"],
+      "gabarito_resumido": "O Silhouette Score mede a qualidade da separacao dos clusters. Varia de -1 a +1. Proximo de +1 indica clusters densos e bem separados; proximo de 0 ou negativo indica mistura entre clusters."
+    },
+    {
+      "id": 5,
+      "pergunta": "O que e o Epsilon Decay no Reinforcement Learning e por que ele inicia com valor alto?",
+      "dificuldade": "medio",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-07-reinforcement-learning.md",
+      "palavras_chave": ["epsilon", "exploracao", "decai", "episodios", "conservador"],
+      "gabarito_resumido": "Epsilon Decay e a taxa de exploracao. Inicia alta (valor 1) porque o agente nao conhece o ambiente e precisa testar possibilidades aleatoriamente. Com o tempo decai, tornando o agente mais conservador e focado no que ja rendeu lucro."
+    },
+    {
+      "id": 6,
+      "pergunta": "Qual a diferenca entre RAG, Fine-Tuning e RLHF como tecnicas de customizacao de modelos de IA?",
+      "dificuldade": "medio",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-09-ia-generativa.md",
+      "palavras_chave": ["rag", "fine-tuning", "rlhf", "alucinacao", "retreinamento", "humano"],
+      "gabarito_resumido": "RAG injeta documentos locais como contexto para reduzir alucinacao (baixo custo). Fine-Tuning retreina a ultima camada do modelo para um nicho especifico (alto custo). RLHF usa feedback humano para alinhar o comportamento do modelo (custo medio)."
+    },
+    {
+      "id": 7,
+      "pergunta": "Explique o funcionamento do mecanismo de atencao (Attention) e qual artigo o introduziu.",
+      "dificuldade": "dificil",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-09-ia-generativa.md",
+      "palavras_chave": ["attention", "transformer", "2017", "contexto", "banco"],
+      "gabarito_resumido": "O mecanismo de atencao, introducido no artigo 'Attention Is All You Need' (2017), permite que o modelo entenda o contexto das palavras na frase. Exemplo: a palavra 'banco' tem significado diferente dependendo das palavras ao redor."
+    },
+    {
+      "id": 8,
+      "pergunta": "Por que redes neurais sao chamadas de 'caixa preta' e qual o problema disso em areas criticas?",
+      "dificuldade": "dificil",
+      "escopo": "dentro",
+      "fonte_esperada": "aula-08-redes-neurais-visao-computacional.md",
+      "palavras_chave": ["caixa preta", "explicavel", "saude", "judiciario", "decisao"],
+      "gabarito_resumido": "Redes neurais sao chamadas de caixa preta porque e dificil explicar como chegaram a uma decisao (falta de Explainable AI). Em areas como saude e judiciario, nao conseguir explicar decisoes criticas e um obstaculo real e atual."
+    },
+    {
+      "id": 9,
+      "pergunta": "Qual e a receita tradicional do pao de queijo mineiro?",
+      "dificuldade": "fora_do_escopo",
+      "escopo": "fora",
+      "fonte_esperada": null,
+      "palavras_chave": [],
+      "gabarito_resumido": "Pergunta fora do escopo dos documentos. O assistente deve recusar e informar que nao ha informacao sobre isso nos documentos disponibilizados."
+    },
+    {
+      "id": 10,
+      "pergunta": "Quem ganhou a Copa do Mundo de futebol em 2022?",
+      "dificuldade": "fora_do_escopo",
+      "escopo": "fora",
+      "fonte_esperada": null,
+      "palavras_chave": [],
+      "gabarito_resumido": "Pergunta fora do escopo dos documentos. O assistente deve recusar e informar que nao ha informacao sobre isso nos documentos disponibilizados."
+    }
+  ]
+}

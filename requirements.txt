@@ -1,4 +1,6 @@
 langchain
+langchain-core
+langchain-ollama
 chromadb
 sentence-transformers
 streamlit

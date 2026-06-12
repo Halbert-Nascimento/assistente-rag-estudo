@@ -1,0 +1,40 @@
+services:
+  # OLLAMA - Servidor LLM Local com suporte a GPU NVIDIA
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama   # volume nomeado "ollama" (igual ao criado pelo comando manual)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: always
+
+  # STREAMLIT - Interface e App RAG
+  app:
+    build: .
+    container_name: rag-streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      # Monta apenas o que muda em runtime (docs e banco vetorial),
+      # preservando o codigo instalado na imagem
+      - ./docs:/app/docs
+      - ./chroma_db:/app/chroma_db
+    environment:
+      # Nomes alinhados com o que app.py le via os.getenv()
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.1
+      - DOCS_DIR=docs
+    depends_on:
+      - ollama
+    restart: always
+
+volumes:
+  ollama:   # reusa o volume criado pelo container standalone (modelos ja baixados)

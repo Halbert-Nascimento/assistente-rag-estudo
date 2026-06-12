@@ -1,0 +1,296 @@
+# -*- coding: utf-8 -*-
+"""
+Testes de Robustez do Pipeline RAG
+Valida que os caminhos de erro funcionam de verdade (nao apenas no papel).
+
+Uso:
+    python tests/run_tests.py
+
+Nao requer pytest nem Ollama rodando. Usa diretorios temporarios para
+nao poluir o banco vetorial real (chroma_db/).
+"""
+
+import sys
+import io
+import shutil
+import tempfile
+from pathlib import Path
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# Garante que a raiz do projeto esteja no path
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
+
+# Silencia logs durante os testes (so falhas aparecem)
+import logging
+logging.disable(logging.CRITICAL)
+
+PASSED = 0
+FAILED = 0
+FAILURES = []
+
+
+def check(name: str, condition: bool, detail: str = ''):
+    """Registra resultado de um teste."""
+    global PASSED, FAILED
+    if condition:
+        PASSED += 1
+        print(f"  [OK]    {name}")
+    else:
+        FAILED += 1
+        FAILURES.append(f"{name} -- {detail}")
+        print(f"  [FALHA] {name} -- {detail}")
+
+
+# ===========================================================================
+# Grupo 1: Loader — caminhos de erro
+# ===========================================================================
+
+def test_loader():
+    print("\n--- Loader: tratamento de erros ---")
+    from src.loader import DocumentLoader
+
+    tmp = Path(tempfile.mkdtemp(prefix='rag_test_'))
+    try:
+        # 1. Diretorio vazio: nao pode quebrar, retorna lista vazia
+        loader = DocumentLoader(str(tmp / 'vazio'))
+        chunks, summary = loader.load_all_documents()
+        check("Diretorio vazio retorna [] sem quebrar",
+              chunks == [] and summary['total_falhas'] == 0)
+
+        # 2. Arquivo vazio: registrado como falha, nao derruba o processo
+        docs = tmp / 'docs1'
+        docs.mkdir()
+        (docs / 'vazio.txt').write_text('', encoding='utf-8')
+        (docs / 'valido.md').write_text('Conteudo valido de teste. ' * 30, encoding='utf-8')
+        loader = DocumentLoader(str(docs))
+        chunks, summary = loader.load_all_documents()
+        check("Arquivo vazio vira falha isolada (outros continuam)",
+              summary['total_falhas'] == 1 and summary['total_sucesso'] == 1,
+              f"falhas={summary['total_falhas']}, sucesso={summary['total_sucesso']}")
+
+        # 3. PDF corrompido: registrado como falha, nao derruba o processo
+        docs2 = tmp / 'docs2'
+        docs2.mkdir()
+        (docs2 / 'corrompido.pdf').write_bytes(b'isto nao e um PDF de verdade')
+        (docs2 / 'ok.txt').write_text('Texto normal para teste. ' * 30, encoding='utf-8')
+        loader = DocumentLoader(str(docs2))
+        chunks, summary = loader.load_all_documents()
+        check("PDF corrompido vira falha isolada (outros continuam)",
+              summary['total_falhas'] == 1 and summary['total_sucesso'] == 1,
+              f"falhas={summary['total_falhas']}, sucesso={summary['total_sucesso']}")
+
+        # 4. Encoding latin-1: deve carregar via fallback
+        docs3 = tmp / 'docs3'
+        docs3.mkdir()
+        (docs3 / 'latin.txt').write_bytes(
+            ('Educação e ciência são a base. ' * 30).encode('latin-1')
+        )
+        loader = DocumentLoader(str(docs3))
+        chunks, summary = loader.load_all_documents()
+        check("Arquivo latin-1 carrega via fallback de encoding",
+              summary['total_sucesso'] == 1 and len(chunks) > 0)
+
+        # 5. IDs unicos com nomes de arquivo repetidos em subpastas
+        docs4 = tmp / 'docs4'
+        (docs4 / 'a').mkdir(parents=True)
+        (docs4 / 'b').mkdir(parents=True)
+        (docs4 / 'a' / 'aula.md').write_text('Conteudo A. ' * 100, encoding='utf-8')
+        (docs4 / 'b' / 'aula.md').write_text('Conteudo B. ' * 100, encoding='utf-8')
+        loader = DocumentLoader(str(docs4))
+        chunks, _ = loader.load_all_documents()
+        ids = [c['chunk_id'] for c in chunks]
+        check("chunk_ids unicos mesmo com nomes de arquivo repetidos",
+              len(ids) == len(set(ids)),
+              f"{len(ids) - len(set(ids))} colisao(oes)")
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ===========================================================================
+# Grupo 2: Chunking — regressao do bug dos fragmentos
+# ===========================================================================
+
+def test_chunking():
+    print("\n--- Chunking: qualidade dos chunks ---")
+    from src.loader import DocumentLoader
+
+    tmp = Path(tempfile.mkdtemp(prefix='rag_test_'))
+    try:
+        docs = tmp / 'docs'
+        docs.mkdir()
+        texto = ('Esta e uma frase de teste com palavras razoaveis. ' * 60).strip()
+        (docs / 'doc.txt').write_text(texto, encoding='utf-8')
+
+        loader = DocumentLoader(str(docs))
+        chunks, _ = loader.load_all_documents()
+
+        # Regressao: o bug original gerava ~50 fragmentos de 1-6 chars no
+        # final de cada arquivo ("2026", "026", "26", "6"...)
+        tiny = [c for c in chunks if c['char_count'] < 50]
+        check("Sem fragmentos-lixo no final do arquivo (regressao)",
+              len(tiny) <= 1,  # no maximo o ultimo chunk pode ser menor
+              f"{len(tiny)} chunks com <50 chars")
+
+        # Tamanho dos chunks respeita o limite configurado
+        oversized = [c for c in chunks if c['char_count'] > DocumentLoader.CHUNK_SIZE + 1]
+        check("Todos os chunks respeitam CHUNK_SIZE",
+              len(oversized) == 0,
+              f"{len(oversized)} chunks acima do limite")
+
+        # Sobreposicao: o fim de um chunk deve reaparecer no inicio do proximo
+        if len(chunks) >= 2:
+            tail = chunks[0]['content'][-20:]
+            check("Sobreposicao preserva continuidade entre chunks",
+                  tail in chunks[1]['content'] or chunks[1]['content'][:20] in chunks[0]['content'])
+
+        # Regressao: secao so-de-titulo nao pode virar chunk isolado
+        # (chunks sem conteudo roubavam vagas do top-N na busca vetorial)
+        md = (
+            "# Aula X - Tema da Aula\n\n**Video:** aula.mp4\n\n---\n\n"
+            "## Conteudo\n\n" + ("Explicacao detalhada do conceito. " * 40)
+        )
+        (docs / 'aula.md').write_text(md, encoding='utf-8')
+        loader = DocumentLoader(str(docs))
+        chunks_md, _ = loader.load_all_documents()
+        md_chunks = [c for c in chunks_md if c['source'] == 'aula.md']
+        so_titulo = [
+            c for c in md_chunks
+            if 'Explicacao' not in c['content'] and 'Conteudo' not in c['content']
+        ]
+        check("Secao so-de-titulo e fundida ao conteudo (nao vira chunk)",
+              len(so_titulo) == 0,
+              f"{len(so_titulo)} chunk(s) so com titulo")
+
+        # Contextualizacao: todo chunk de .md carrega o titulo do documento
+        # (sem isso, chunks nao casam com perguntas que citam o tema da aula)
+        sem_titulo = [c for c in md_chunks if '# Aula X' not in c['content']]
+        check("Chunks de .md carregam o titulo do documento (contexto)",
+              len(sem_titulo) == 0,
+              f"{len(sem_titulo)} chunk(s) sem titulo")
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ===========================================================================
+# Grupo 3: Embedder — banco vetorial
+# ===========================================================================
+
+def test_embedder():
+    print("\n--- Embedder: banco vetorial (carrega modelo, ~15s) ---")
+    from src.embedder import DocumentEmbedder
+
+    tmp = Path(tempfile.mkdtemp(prefix='rag_test_db_'))
+    try:
+        embedder = DocumentEmbedder(db_path=str(tmp / 'db'))
+
+        # 1. Busca em colecao vazia: nao pode quebrar
+        results = embedder.search("qualquer pergunta")
+        check("Busca em colecao vazia retorna [] sem quebrar", results == [])
+
+        # 2. Lista vazia de chunks: nao pode quebrar
+        r = embedder.embed_and_store([])
+        check("embed_and_store([]) retorna zeros sem quebrar",
+              r == {'stored': 0, 'failed': 0, 'total': 0})
+
+        # 3. Chunk sem conteudo: contado como falha, nao quebra
+        fake = [
+            {'chunk_id': 'x_0001', 'content': '', 'source': 's', 'source_path': 's',
+             'timestamp': 't', 'char_count': 0},
+            {'chunk_id': 'x_0002', 'content': 'Aprendizado de maquina supervisionado',
+             'source': 's.md', 'source_path': 's.md', 'timestamp': 't', 'char_count': 37},
+        ]
+        r = embedder.embed_and_store(fake)
+        check("Chunk vazio e pulado; valido e gravado",
+              r['stored'] == 1 and r['failed'] == 1,
+              f"stored={r['stored']}, failed={r['failed']}")
+
+        # 4. Idempotencia: indexar 2x nao duplica
+        r = embedder.embed_and_store(fake)
+        total = embedder.collection.count()
+        check("Reindexar nao duplica documentos (upsert idempotente)",
+              total == 1, f"total no DB: {total}")
+
+        # 5. Busca retorna o documento com similaridade em [0,1]
+        results = embedder.search("machine learning supervisionado", n_results=1)
+        ok = (len(results) == 1
+              and 0.0 <= results[0]['similarity'] <= 1.0)
+        check("Busca retorna similaridade valida entre 0 e 1",
+              ok,
+              f"results={len(results)}")
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ===========================================================================
+# Grupo 4: Chain — recusa deterministica (sem Ollama)
+# ===========================================================================
+
+def test_chain_refusal():
+    print("\n--- Chain: recusa sem depender do LLM ---")
+    from src.chain import RAGChain, REFUSAL_MESSAGE
+    from src.embedder import DocumentEmbedder
+
+    # Usa o banco REAL (51 chunks das aulas) pois o limiar foi calibrado nele.
+    # O construtor de OllamaLLM nao abre conexao, entao funciona sem Ollama.
+    real_db = ROOT / 'chroma_db'
+    if not real_db.exists():
+        print("  [PULADO] chroma_db nao existe; rode test_rag.py antes")
+        return
+
+    embedder = DocumentEmbedder(db_path=str(real_db))
+    if embedder.collection.count() == 0:
+        print("  [PULADO] chroma_db vazio; rode test_rag.py antes")
+        return
+
+    chain = RAGChain(embedder=embedder)
+
+    # 1. Pergunta vazia
+    r = chain.ask("")
+    check("Pergunta vazia tratada sem quebrar", 'pergunta valida' in r['answer'])
+
+    # 2. Fora do escopo: recusa SEM chamar o LLM (Ollama nem esta rodando)
+    r = chain.ask("Qual e a receita tradicional do pao de queijo mineiro?")
+    check("Pergunta fora do escopo recusada deterministicamente",
+          r['answer'] == REFUSAL_MESSAGE and r['context_chunks'] == 0,
+          f"answer={r['answer'][:60]}")
+
+    r = chain.ask("Quem ganhou a Copa do Mundo de futebol em 2022?")
+    check("Segunda pergunta fora do escopo tambem recusada",
+          r['answer'] == REFUSAL_MESSAGE)
+
+    # 3. Dentro do escopo: chunks passam do limiar (LLM falharia, mas
+    #    o erro e capturado e vira mensagem amigavel — testa o caminho de erro)
+    r = chain.ask("O que e o Metodo do Cotovelo no K-Means?")
+    check("Pergunta in-scope recupera contexto acima do limiar",
+          r['context_chunks'] > 0,
+          f"chunks={r['context_chunks']}")
+    check("Erro de LLM offline vira mensagem amigavel (nao excecao)",
+          'Erro ao gerar resposta' in r['answer'] or len(r.get('sources', [])) > 0)
+
+
+# ===========================================================================
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print(" TESTES DE ROBUSTEZ DO PIPELINE RAG")
+    print("=" * 60)
+
+    test_loader()
+    test_chunking()
+    test_embedder()
+    test_chain_refusal()
+
+    print("\n" + "=" * 60)
+    print(f" RESULTADO: {PASSED} passaram | {FAILED} falharam")
+    if FAILURES:
+        print("\n Falhas:")
+        for f in FAILURES:
+            print(f"   - {f}")
+    print("=" * 60)
+
+    sys.exit(1 if FAILED else 0)

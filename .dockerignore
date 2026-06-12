@@ -2,7 +2,7 @@ venv/
 __pycache__/
 *.pyc
 chroma_db/
-.DS_Store
+.git/
 .env
-docs/
+eval/resultados*.json
 diag_out.txt
