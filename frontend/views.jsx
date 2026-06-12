@@ -65,7 +65,7 @@ function HomeView({ goto, ask, temas, openConversation }) {
         }}
       >
         <div>
-          <div className="h-eyebrow">Inteligência Artificial · 2026.1</div>
+          <div className="h-eyebrow">Assistente virtual de estudos</div>
           <h1 className="h1">Bom te ver de volta 👋</h1>
           <p className="sub">
             O assistente já processou{" "}

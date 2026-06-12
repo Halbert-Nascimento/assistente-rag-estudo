@@ -102,9 +102,8 @@ function App() {
           </div>
           <div>
             <div className="brand-name">
-              Aula<span style={{ color: "var(--accent)" }}>·</span>RAG
+              Assistente de estudos
             </div>
-            <div className="brand-sub">Assistente de estudos</div>
           </div>
         </div>
 
@@ -155,19 +154,6 @@ function App() {
           </div>
         </div>
 
-        <div className="nav-item" style={{ marginTop: 8 }}>
-          <div className="avatar" style={{ width: 30, height: 30, fontSize: 12 }}>
-            IA
-          </div>
-          <div style={{ lineHeight: 1.2 }}>
-            <div style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>
-              Estudante
-            </div>
-            <div style={{ fontSize: 11, color: "var(--side-ink-3)" }}>
-              IA · Prof. Rogério
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* Main */}
