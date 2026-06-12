@@ -204,3 +204,18 @@ O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentado
 - [x] **BUG-009 Upload de 1 arquivo so:** o input nao tinha `multiple` — selecionar
   2 documentos enviava apenas 1. Agora aceita varios, envia sequencialmente e o
   card de resultado mostra o status de cada arquivo (chunks ou motivo do erro).
+
+## Fase 10: Preparacao para Entrega (🔄 Em andamento — branch `nova-interface`)
+- [x] **docs/ organizado por materia:** `machine-learning/` (aulas 06-07),
+  `redes-neurais/` (aula 08), `ia-generativa/` (aula 09), `infraestrutura/` (PDF).
+  Banco reconstruido do zero (clear + force) pois mover arquivos muda os chunk_ids —
+  upsert nao remove orfaos. **106 chunks de 6 arquivos.** Validado: busca com escopo
+  retorna apenas fontes da materia; eval recuperacao 8/8 mantido.
+- [x] **README.md reescrito** para a nova interface: FastAPI+React porta 8000,
+  materias por subpasta, upload, indexacao incremental, escopo por materia,
+  benchmark atualizado (21 testes), processo BACKLOG.md documentado.
+- [x] **docker-compose:** volume `hf_cache` para o modelo de embeddings (~470MB)
+  nao re-baixar a cada recriacao do container; `.dockerignore` exclui docs/ e data/.
+- [ ] **Validacao Docker de ponta a ponta** (`docker-compose up -d --build --remove-orphans`):
+  container antigo `rag-streamlit` (8501) removido como orfao; novo `rag-app` (8000).
+- [ ] **Merge `nova-interface` → `main`** apos validacao Docker.

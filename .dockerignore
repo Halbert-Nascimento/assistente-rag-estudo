@@ -6,3 +6,5 @@ chroma_db/
 .env
 eval/resultados*.json
 diag_out.txt
+docs/
+data/

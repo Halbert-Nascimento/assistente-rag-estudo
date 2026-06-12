@@ -268,6 +268,79 @@ async def upload(file: UploadFile = File(...), materia: str = Form("")):
     return resultado
 
 
+@app.post("/api/documentos/mover")
+async def mover_documento(rel_path: str = Form(...), nova_materia: str = Form(...)):
+    """Move um arquivo para outra materia, atualizando ChromaDB e manifest (FEAT-007)."""
+    docs_dir = _docs_dir()
+    origem = docs_dir / rel_path
+
+    if not origem.exists():
+        return JSONResponse({"ok": False, "erro": "Arquivo não encontrado."}, status_code=404)
+
+    nova_materia = re.sub(r"[^a-zA-Z0-9_\- ]", "", nova_materia.strip()).replace(" ", "-").lower()
+    destino_dir = docs_dir / nova_materia if nova_materia and nova_materia != "geral" else docs_dir
+    destino = destino_dir / origem.name
+
+    if destino.resolve() == origem.resolve():
+        return {"ok": True, "chunks": 0, "msg": "Arquivo já está nesta matéria."}
+
+    # Remove chunks antigos do ChromaDB (source_path = caminho relativo atual)
+    try:
+        get_embedder().collection.delete(where={"source_path": rel_path})
+    except Exception:
+        pass
+
+    # Remove entrada antiga do manifest
+    manifest = _load(MANIFEST_FILE, {})
+    manifest.pop(rel_path, None)
+    _save(MANIFEST_FILE, manifest)
+
+    # Move o arquivo
+    destino_dir.mkdir(parents=True, exist_ok=True)
+    origem.rename(destino)
+
+    # Remove a subpasta de origem se ficou vazia (exceto a raiz de docs/)
+    pasta_origem = origem.parent
+    if pasta_origem != docs_dir and pasta_origem.exists() and not any(pasta_origem.iterdir()):
+        pasta_origem.rmdir()
+
+    # Reindexar (só o arquivo movido vai aparecer como novo no manifest)
+    resultado = _run_indexing()
+    return {"ok": True, "chunks": resultado.get("chunks", 0)}
+
+
+@app.delete("/api/documentos")
+async def excluir_documento(rel_path: str):
+    """Remove um arquivo de docs/, apaga seus chunks do ChromaDB e atualiza o manifest (FEAT-008)."""
+    docs_dir = _docs_dir()
+    arquivo = docs_dir / rel_path
+
+    if not arquivo.exists():
+        return JSONResponse({"ok": False, "erro": "Arquivo não encontrado."}, status_code=404)
+
+    # Remove chunks do ChromaDB
+    try:
+        get_embedder().collection.delete(where={"source_path": rel_path})
+    except Exception:
+        pass
+
+    # Remove do manifest
+    manifest = _load(MANIFEST_FILE, {})
+    manifest.pop(rel_path, None)
+    _save(MANIFEST_FILE, manifest)
+
+    # Apaga o arquivo
+    try:
+        arquivo.unlink()
+        pasta = arquivo.parent
+        if pasta != docs_dir and pasta.exists() and not any(pasta.iterdir()):
+            pasta.rmdir()
+    except OSError as e:
+        return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
+
+    return {"ok": True}
+
+
 class ChatRequest(BaseModel):
     pergunta: str
     session_id: Optional[str] = None
@@ -407,6 +480,7 @@ async def documentos():
 
             arquivos.append({
                 "id": str(abs(hash(str(f)))),
+                "rel_path": str(rel),
                 "nome": f.name,
                 "tipo": f.suffix.lower().lstrip("."),
                 "tamanho": size_str,

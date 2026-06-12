@@ -129,6 +129,32 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   recentes (mtime); fallback para lista fixa.
 - **Arquivos:** `api.py`
 
+### BUG-010 — Seletor de matéria no upload não permite criar nova matéria   [status: resolvido em 12/06/2026 | prioridade: alta]
+- **Sintoma:** o campo "Matéria" no upload é um `<select>` com opções fixas (apenas matérias
+  já existentes em `docs/`). Não há como digitar uma matéria nova sem primeiro criar a subpasta
+  manualmente.
+- **Causa raiz:** implementação usou `<select>` em vez de um campo de texto com sugestões.
+- **Correção:** substituir `<select>` por `<input type="text" list="materias-list">` + `<datalist>`
+  com as matérias existentes como sugestões. Usuário pode selecionar uma existente OU digitar
+  qualquer nome — o backend já cria a subpasta via `destino_dir.mkdir(parents=True, exist_ok=True)`.
+- **Arquivos:** `frontend/views.jsx`
+
+### FEAT-007 — Mover arquivo entre matérias pela interface   [status: resolvido em 12/06/2026 | prioridade: media]
+- **Sintoma:** não há como reorganizar um arquivo já indexado para outra matéria sem acesso
+  manual ao sistema de arquivos.
+- **Correção:** botão `···` em cada linha da tabela abre menu com "Mover para matéria" →
+  campo de destino (suporta matéria existente ou nova) + confirma. Backend move o arquivo no
+  disco, remove os chunks antigos do ChromaDB (`delete where source_path = ...`), atualiza
+  o manifest e reindexar o arquivo na nova localização.
+- **Arquivos:** `api.py`, `frontend/views.jsx`
+
+### FEAT-008 — Excluir arquivo da base pela interface   [status: resolvido em 12/06/2026 | prioridade: media]
+- **Sintoma:** não há como remover um documento da base sem acesso manual ao sistema de arquivos.
+- **Correção:** opção "Excluir arquivo" no mesmo menu `···`. Confirmação via diálogo nativo.
+  Backend apaga o arquivo do disco, remove todos os chunks do ChromaDB e limpa o manifest.
+  Se a subpasta da matéria ficar vazia, ela é removida automaticamente.
+- **Arquivos:** `api.py`, `frontend/views.jsx`
+
 ### FEAT-006 — OCR para PDFs de imagem   [status: aberto | prioridade: baixa]
 - **Contexto:** PDFs sem texto extraivel (escaneados/imagem-only) sao corretamente
   recusados com aviso, ex: "Manual de Formatacao Markdown - v5.0.pdf". Para indexa-los

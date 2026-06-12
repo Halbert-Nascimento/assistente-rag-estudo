@@ -351,6 +351,9 @@ function DocumentosView({ temas, onIndexed }) {
   const [enviando, setEnviando] = React.useState(false);
   const [resultado, setResultado] = React.useState(null);
   const [uploadMateria, setUploadMateria] = React.useState("");
+  const [menuAberto, setMenuAberto] = React.useState(null);   // rel_path do menu aberto
+  const [movendo, setMovendo] = React.useState(null);         // {relPath, novaMat}
+  const [processando, setProcessando] = React.useState(null); // rel_path em operação
   const fileRef = React.useRef(null);
 
   const temasList = (dados && dados.temas) || temas || [];
@@ -413,6 +416,48 @@ function DocumentosView({ temas, onIndexed }) {
     fetchDocs();
     onIndexed && onIndexed();
     setEnviando(false);
+  }
+
+  async function moverArquivo() {
+    if (!movendo || !movendo.novaMat.trim()) return;
+    setProcessando(movendo.relPath);
+    setMovendo(null);
+    try {
+      const form = new FormData();
+      form.append("rel_path", movendo.relPath);
+      form.append("nova_materia", movendo.novaMat.trim());
+      const res = await fetch("/api/documentos/mover", { method: "POST", body: form });
+      const data = await res.json();
+      setResultado(data.ok
+        ? { ok: true, arquivo_salvo: movendo.relPath.split("/").pop(), chunks: data.chunks || 0 }
+        : { ok: false, erro: data.erro || "Erro ao mover arquivo." }
+      );
+      fetchDocs();
+      onIndexed && onIndexed();
+    } catch {
+      setResultado({ ok: false, erro: "Falha de conexão com o servidor." });
+    } finally {
+      setProcessando(null);
+    }
+  }
+
+  async function excluirArquivo(relPath, nome) {
+    if (!window.confirm(`Excluir "${nome}" da base de conhecimento?\n\nO arquivo será removido do disco e todos os seus chunks apagados do ChromaDB.`)) return;
+    setProcessando(relPath);
+    try {
+      const res = await fetch(`/api/documentos?rel_path=${encodeURIComponent(relPath)}`, { method: "DELETE" });
+      const data = await res.json();
+      setResultado(data.ok
+        ? { ok: true, chunks: 0, arquivo_salvo: nome, _excluido: true }
+        : { ok: false, erro: data.erro || "Erro ao excluir arquivo." }
+      );
+      fetchDocs();
+      onIndexed && onIndexed();
+    } catch {
+      setResultado({ ok: false, erro: "Falha de conexão com o servidor." });
+    } finally {
+      setProcessando(null);
+    }
   }
 
   const d0 = dados || { arquivos: [], total: 0, indexados: 0, chunks: 0 };
@@ -490,11 +535,13 @@ function DocumentosView({ temas, onIndexed }) {
             ) : resultado.ok ? (
               <>
                 <b>
-                  {resultado.arquivo_salvo
+                  {resultado._excluido
+                    ? `Arquivo "${resultado.arquivo_salvo}" excluído da base.`
+                    : resultado.arquivo_salvo
                     ? `Arquivo "${resultado.arquivo_salvo}" enviado!`
                     : "Indexação concluída!"}
                 </b>{" "}
-                {resultado.chunks > 0
+                {resultado._excluido ? null : resultado.chunks > 0
                   ? `${resultado.chunks} chunks de ${resultado.arquivos} arquivo(s) processados.`
                   : "Nenhum arquivo novo para processar."}
                 {resultado.pulados > 0 && (
@@ -542,12 +589,15 @@ function DocumentosView({ temas, onIndexed }) {
           ))}
         </div>
 
-        {/* Upload: matéria de destino + arquivo (FEAT-002) */}
+        {/* Upload: matéria de destino + arquivo (BUG-010 + FEAT-002) */}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select
+          {/* input+datalist: permite selecionar matéria existente OU digitar nova */}
+          <input
+            list="upload-materias-list"
             value={uploadMateria}
             onChange={(e) => setUploadMateria(e.target.value)}
-            title="Matéria de destino do upload"
+            placeholder="Matéria (vazio = Geral)"
+            title="Selecione uma matéria existente ou digite o nome de uma nova"
             style={{
               padding: "9px 11px",
               borderRadius: 11,
@@ -556,17 +606,14 @@ function DocumentosView({ temas, onIndexed }) {
               fontSize: 13,
               color: "var(--ink-2)",
               fontFamily: "inherit",
+              width: 190,
             }}
-          >
-            <option value="">Matéria: Geral</option>
-            {temasList
-              .filter((t) => t.id !== "geral")
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  Matéria: {t.nome}
-                </option>
-              ))}
-          </select>
+          />
+          <datalist id="upload-materias-list">
+            {temasList.map((t) => (
+              <option key={t.id} value={t.id}>{t.nome}</option>
+            ))}
+          </datalist>
           <input
             ref={fileRef}
             type="file"
@@ -594,8 +641,15 @@ function DocumentosView({ temas, onIndexed }) {
         </div>
       </div>
 
+      {/* datalist compartilhado para mover */}
+      <datalist id="mover-materias-list">
+        {temasList.map((t) => (
+          <option key={t.id} value={t.id}>{t.nome}</option>
+        ))}
+      </datalist>
+
       {/* Tabela */}
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflow: "visible" }}>
         <div className="doc-row head">
           <span>Arquivo</span>
           <span>Matéria</span>
@@ -611,50 +665,98 @@ function DocumentosView({ temas, onIndexed }) {
           <>
             {rows.map((d) => {
               const t = byId(d.tema);
+              const esteEmMovimento = movendo && movendo.relPath === d.rel_path;
+              const esteProcessando = processando === d.rel_path;
               return (
-                <div className="doc-row" key={d.id}>
-                  <div className="doc-file">
-                    <div className="doc-fic" style={{ background: tipoCor[d.tipo] || "var(--ink-3)" }}>
-                      {(d.tipo || "").toUpperCase()}
+                <React.Fragment key={d.id}>
+                  <div className="doc-row" style={{ opacity: esteProcessando ? 0.5 : 1, position: "relative" }}>
+                    <div className="doc-file">
+                      <div className="doc-fic" style={{ background: tipoCor[d.tipo] || "var(--ink-3)" }}>
+                        {(d.tipo || "").toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="doc-fname">{d.nome}</div>
+                        <div className="doc-fmeta">{d.tamanho} · adicionado em {d.data}</div>
+                      </div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="doc-fname">{d.nome}</div>
-                      <div className="doc-fmeta">{d.tamanho} · adicionado em {d.data}</div>
+                    <div>
+                      <span className="chip" style={{ borderColor: t.cor + "44", color: t.cor, background: t.cor + "12" }}>
+                        {t.nome}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", color: d.chunks ? "var(--ink)" : "var(--ink-3)" }}>
+                      {d.chunks || "—"}{" "}
+                      <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}>chunks</span>
+                    </div>
+                    <div>
+                      {d.indexado === true ? (
+                        <span className="tag tag-high"><Icon name="check" size={11} style={{ verticalAlign: "-1px" }} /> Indexado</span>
+                      ) : (
+                        <span className="tag tag-muted"><Icon name="clock" size={11} style={{ verticalAlign: "-1px" }} /> Não indexado</span>
+                      )}
+                    </div>
+                    {/* Botão ··· com menu de ações (FEAT-007 + FEAT-008) */}
+                    <div style={{ position: "relative" }}>
+                      <button
+                        className="icon-btn"
+                        style={{ width: 32, height: 32 }}
+                        disabled={esteProcessando}
+                        onClick={() => {
+                          setMenuAberto(menuAberto === d.rel_path ? null : d.rel_path);
+                          setMovendo(null);
+                        }}
+                      >
+                        <Icon name="dot3" size={16} />
+                      </button>
+                      {menuAberto === d.rel_path && (
+                        <>
+                          {/* overlay transparente para fechar ao clicar fora */}
+                          <div
+                            style={{ position: "fixed", inset: 0, zIndex: 9 }}
+                            onClick={() => setMenuAberto(null)}
+                          />
+                          <div style={{
+                            position: "absolute", right: 0, top: 36, zIndex: 10,
+                            background: "var(--surface)", border: "1px solid var(--line-2)",
+                            borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                            minWidth: 180, padding: "6px 0", fontSize: 13,
+                          }}>
+                            <button
+                              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px", background: "none", border: 0, cursor: "pointer", color: "var(--ink-2)", textAlign: "left" }}
+                              onClick={() => { setMovendo({ relPath: d.rel_path, novaMat: d.tema }); setMenuAberto(null); }}
+                            >
+                              <Icon name="arrowR" size={14} /> Mover para matéria
+                            </button>
+                            <div style={{ height: 1, background: "var(--line-2)", margin: "4px 0" }} />
+                            <button
+                              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px", background: "none", border: 0, cursor: "pointer", color: "var(--low)", textAlign: "left" }}
+                              onClick={() => { setMenuAberto(null); excluirArquivo(d.rel_path, d.nome); }}
+                            >
+                              <Icon name="alert" size={14} /> Excluir arquivo
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <span
-                      className="chip"
-                      style={{ borderColor: t.cor + "44", color: t.cor, background: t.cor + "12" }}
-                    >
-                      {t.nome}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontVariantNumeric: "tabular-nums",
-                      color: d.chunks ? "var(--ink)" : "var(--ink-3)",
-                    }}
-                  >
-                    {d.chunks || "—"}{" "}
-                    <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}>chunks</span>
-                  </div>
-                  <div>
-                    {d.indexado === true ? (
-                      <span className="tag tag-high">
-                        <Icon name="check" size={11} style={{ verticalAlign: "-1px" }} /> Indexado
-                      </span>
-                    ) : (
-                      <span className="tag tag-muted">
-                        <Icon name="clock" size={11} style={{ verticalAlign: "-1px" }} /> Não indexado
-                      </span>
-                    )}
-                  </div>
-                  <button className="icon-btn" style={{ width: 32, height: 32 }}>
-                    <Icon name="dot3" size={16} />
-                  </button>
-                </div>
+                  {/* Formulário inline de mover (FEAT-007) */}
+                  {esteEmMovimento && (
+                    <div style={{ padding: "10px 18px 14px", background: "var(--bg)", borderTop: "1px solid var(--line-2)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 13, color: "var(--ink-3)" }}>Mover <b>{d.nome}</b> para:</span>
+                      <input
+                        list="mover-materias-list"
+                        autoFocus
+                        value={movendo.novaMat}
+                        onChange={(e) => setMovendo({ ...movendo, novaMat: e.target.value })}
+                        placeholder="Nome da matéria"
+                        style={{ padding: "7px 11px", borderRadius: 9, border: "1px solid var(--line-2)", background: "var(--surface)", fontSize: 13, fontFamily: "inherit", flex: 1, minWidth: 160, maxWidth: 240 }}
+                        onKeyDown={(e) => { if (e.key === "Enter") moverArquivo(); if (e.key === "Escape") setMovendo(null); }}
+                      />
+                      <button className="btn btn-accent" style={{ padding: "8px 14px", fontSize: 13 }} onClick={moverArquivo}>Confirmar</button>
+                      <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 13 }} onClick={() => setMovendo(null)}>Cancelar</button>
+                    </div>
+                  )}
+                </React.Fragment>
               );
             })}
             {rows.length === 0 && (
