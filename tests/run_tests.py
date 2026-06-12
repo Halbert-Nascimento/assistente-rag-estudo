@@ -70,6 +70,14 @@ def test_loader():
               summary['total_falhas'] == 1 and summary['total_sucesso'] == 1,
               f"falhas={summary['total_falhas']}, sucesso={summary['total_sucesso']}")
 
+        # 2b. Regressao BUG-006: a biblioteca de PDF precisa estar importavel.
+        # O loader importava 'PyPDF2' mas o requirements instala 'pypdf'
+        # (modulo pypdf) - todo PDF falhava com "pypdf nao esta instalado".
+        from src.loader import PdfReader
+        check("Biblioteca de PDF (pypdf) disponivel no loader",
+              PdfReader is not None,
+              "import pypdf/PyPDF2 falhou - PDFs nunca serao indexados")
+
         # 3. PDF corrompido: registrado como falha, nao derruba o processo
         docs2 = tmp / 'docs2'
         docs2.mkdir()

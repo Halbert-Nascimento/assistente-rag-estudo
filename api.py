@@ -177,7 +177,11 @@ def _run_indexing(force: bool = False) -> dict:
         "arquivos": summary["total_sucesso"] - pulados,
         "pulados": pulados,
         "falhas": summary["total_falhas"],
-        "arquivos_com_erro": [f["arquivo"] for f in summary.get("arquivos_falhados", [])],
+        # Inclui o MOTIVO de cada falha (BUG-008) — a UI exibe arquivo + erro
+        "arquivos_com_erro": [
+            {"arquivo": f["arquivo"], "erro": f["erro"]}
+            for f in summary.get("arquivos_falhados", [])
+        ],
     }
 
 
@@ -242,6 +246,24 @@ async def upload(file: UploadFile = File(...), materia: str = Form("")):
 
     # Indexa apenas o que mudou (o arquivo novo)
     resultado = _run_indexing()
+
+    # Se o arquivo ENVIADO falhou ao processar, remove-o de docs/ e
+    # devolve o motivo — senao ele geraria o mesmo erro em toda
+    # indexacao futura (BUG-008)
+    falha = next(
+        (f for f in resultado.get("arquivos_com_erro", []) if f["arquivo"] == nome),
+        None,
+    )
+    if falha:
+        try:
+            destino.unlink()
+        except OSError:
+            pass
+        return JSONResponse(
+            {"ok": False, "erro": f"'{nome}' nao pode ser processado: {falha['erro']}"},
+            status_code=422,
+        )
+
     resultado["arquivo_salvo"] = str(destino.relative_to(_docs_dir()))
     return resultado
 

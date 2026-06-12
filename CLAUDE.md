@@ -186,3 +186,18 @@ O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentado
 - [x] **FEAT-005 Sugestoes dinamicas:** 3 sugestoes geradas dos titulos dos documentos
   mais recentes.
 - [x] Testes 20/20 | eval 8/8 + 2/2 | upload e2e testado e limpo.
+
+**Segunda rodada (mesmo dia), apos teste real do usuario:**
+- [x] **BUG-006 PDFs nunca indexavam:** loader importava `PyPDF2` mas o requirements
+  instala `pypdf` (modulo novo) — import falhava silenciosamente e TODO PDF era
+  rejeitado. Latente desde a Fase 3 (so havia .md na base). Corrigido com
+  `from pypdf import PdfReader` + fallback + teste de regressao (21 testes).
+- [x] **BUG-007 Composer sumia no chat:** o grid `.app` nao definia as linhas —
+  a linha implicita crescia com o conteudo alem dos 100vh e o `overflow:hidden`
+  cortava o composer. `grid-template-rows: minmax(0,1fr)` + `min-height:0` no
+  `.main`. Chat agora rola internamente (inclusive para cima) com input fixo.
+- [x] **BUG-008 Erros sem motivo:** `arquivos_com_erro` agora retorna
+  `{arquivo, erro}`; a UI mostra o motivo por arquivo; upload cujo arquivo
+  falha e removido de docs/ e retorna 422 com o motivo.
+- [x] **FEAT-006 (aberto):** OCR para PDFs imagem-only registrado no BACKLOG
+  (ex: Manual de Formatacao v5.0.pdf — sem texto extraivel, recusa correta).

@@ -52,6 +52,38 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
 - **Correcao:** clique abre chat limpo **com escopo da materia** (depende de FEAT-003).
 - **Arquivos:** `frontend/views.jsx`, `frontend/app.jsx`
 
+### BUG-006 — PDFs nunca sao indexados (pypdf vs PyPDF2)   [status: resolvido em 12/06/2026 | prioridade: alta]
+- **Sintoma:** todo upload/indexacao de PDF falha com "pypdf nao esta instalado",
+  mesmo com o pacote instalado.
+- **Causa raiz:** `src/loader.py` importa `PyPDF2`, mas o `requirements.txt` instala
+  `pypdf` (nome novo do pacote, modulo `pypdf`). O import falha silenciosamente
+  (`PyPDF2 = None`) e qualquer PDF e rejeitado. Latente desde a Fase 3 — nunca
+  apareceu porque so havia arquivos `.md` na base.
+- **Correcao:** importar `from pypdf import PdfReader` com fallback para `PyPDF2`;
+  teste de regressao garantindo que a biblioteca de PDF esta disponivel.
+- **Arquivos:** `src/loader.py`, `tests/run_tests.py`
+
+### BUG-007 — Composer some quando o chat tem muitas mensagens   [status: resolvido em 12/06/2026 | prioridade: alta]
+- **Sintoma:** com varias perguntas/respostas, a tela e empurrada para baixo e o campo
+  de digitar some; nao da para rolar para cima para ver mensagens anteriores.
+- **Causa raiz:** o grid `.app` define `grid-template-columns` mas nao define as linhas —
+  a linha implicita tem altura `auto` e cresce com o conteudo alem dos 100vh
+  (o `overflow: hidden` corta o excesso, escondendo o composer). O fix do BUG-004
+  (`flex:1; min-height:0` no `.chat-wrap`) so funciona se toda a cadeia de altura
+  estiver restrita — e a linha do grid nao estava.
+- **Correcao:** `grid-template-rows: minmax(0, 1fr)` no `.app` + `min-height: 0` no
+  `.main`. O chat rola internamente (para cima inclusive) e o composer fica fixo.
+- **Arquivos:** `frontend/styles.css`
+
+### BUG-008 — Erros de indexacao/upload sem o motivo   [status: resolvido em 12/06/2026 | prioridade: media]
+- **Sintoma:** a mensagem mostra so o nome do arquivo com erro ("2 arquivo(s) com erro: X.pdf"),
+  sem dizer por que falhou; um upload que falha deixa o arquivo quebrado em `docs/`
+  gerando o mesmo erro em toda indexacao futura.
+- **Correcao:** `arquivos_com_erro` passa a incluir o motivo (`{arquivo, erro}`);
+  upload cujo arquivo falha ao processar retorna `ok: false` com o motivo e
+  remove o arquivo salvo de `docs/`.
+- **Arquivos:** `api.py`, `frontend/views.jsx`
+
 ---
 
 ## Melhorias
@@ -87,6 +119,12 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
 - **Proposta:** gerar 3 sugestoes a partir dos titulos (`# ...`) dos 3 documentos mais
   recentes (mtime); fallback para lista fixa.
 - **Arquivos:** `api.py`
+
+### FEAT-006 — OCR para PDFs de imagem   [status: aberto | prioridade: baixa]
+- **Contexto:** PDFs sem texto extraivel (escaneados/imagem-only) sao corretamente
+  recusados com aviso, ex: "Manual de Formatacao Markdown - v5.0.pdf". Para indexa-los
+  seria preciso OCR (ex: pytesseract + pdf2image), que adiciona dependencias pesadas.
+- **Arquivos:** `src/loader.py`, `requirements.txt`
 
 ---
 

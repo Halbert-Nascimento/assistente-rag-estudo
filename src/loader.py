@@ -9,10 +9,15 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 from datetime import datetime
 
+# O pacote moderno e 'pypdf' (modulo pypdf); 'PyPDF2' e o nome legado.
+# Importar so PyPDF2 fazia TODO PDF falhar com pypdf instalado (BUG-006).
 try:
-    import PyPDF2
+    from pypdf import PdfReader
 except ImportError:
-    PyPDF2 = None
+    try:
+        from PyPDF2 import PdfReader
+    except ImportError:
+        PdfReader = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -112,7 +117,7 @@ class DocumentLoader:
 
     def _load_pdf(self, file_path: Path) -> str:
         """Extrai texto de PDF com tratamento de erros por pagina."""
-        if PyPDF2 is None:
+        if PdfReader is None:
             raise ImportError(
                 "pypdf nao esta instalado. Execute: pip install pypdf"
             )
@@ -120,7 +125,7 @@ class DocumentLoader:
         texts: List[str] = []
         with open(file_path, 'rb') as f:
             try:
-                reader = PyPDF2.PdfReader(f)
+                reader = PdfReader(f)
             except Exception as e:
                 raise ValueError(f"Arquivo PDF invalido ou corrompido: {e}")
 

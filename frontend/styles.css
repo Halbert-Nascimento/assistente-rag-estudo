@@ -92,6 +92,9 @@ input, textarea { font-family: inherit; }
 .app {
   display: grid;
   grid-template-columns: 256px 1fr;
+  /* Sem linha explicita, a linha implicita (auto) cresce com o conteudo
+     alem dos 100vh e o composer do chat e cortado (BUG-007). */
+  grid-template-rows: minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -105,6 +108,8 @@ input, textarea { font-family: inherit; }
   padding: 18px 14px;
   gap: 6px;
   position: relative;
+  min-height: 0;
+  overflow-y: auto;
 }
 .side::after {
   content: ""; position: absolute; inset: 0 0 0 auto; width: 1px;
@@ -156,7 +161,7 @@ input, textarea { font-family: inherit; }
 .side-card .sc-meta { font-size: 11.5px; color: var(--side-ink-3); margin-top: 8px; line-height: 1.5; }
 
 /* ---------- Main column ---------- */
-.main { display: flex; flex-direction: column; min-width: 0; background: var(--paper); }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--paper); }
 
 .topbar {
   height: 62px; flex: none;

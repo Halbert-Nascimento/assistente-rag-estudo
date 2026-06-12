@@ -467,10 +467,15 @@ function DocumentosView({ temas, onIndexed }) {
                   <span className="muted"> {resultado.pulados} arquivo(s) já indexado(s) — pulados.</span>
                 )}
                 {resultado.falhas > 0 && (
-                  <span style={{ color: "var(--low)", marginLeft: 8 }}>
-                    {resultado.falhas} arquivo(s) com erro:{" "}
-                    {(resultado.arquivos_com_erro || []).join(", ")}
-                  </span>
+                  <div style={{ color: "var(--low)", marginTop: 4 }}>
+                    {resultado.falhas} arquivo(s) com erro:
+                    {(resultado.arquivos_com_erro || []).map((e, i) => (
+                      <div key={i} style={{ fontSize: 13, marginTop: 2 }}>
+                        • <b>{typeof e === "string" ? e : e.arquivo}</b>
+                        {typeof e !== "string" && e.erro ? ` — ${e.erro}` : ""}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </>
             ) : (
