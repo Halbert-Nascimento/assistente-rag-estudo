@@ -205,7 +205,7 @@ O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentado
   2 documentos enviava apenas 1. Agora aceita varios, envia sequencialmente e o
   card de resultado mostra o status de cada arquivo (chunks ou motivo do erro).
 
-## Fase 10: Preparacao para Entrega (🔄 Em andamento — branch `nova-interface`)
+## Fase 10: Preparacao para Entrega (✅ Concluido em 12/06/2026 — mergeado em master)
 - [x] **docs/ organizado por materia:** `machine-learning/` (aulas 06-07),
   `redes-neurais/` (aula 08), `ia-generativa/` (aula 09), `infraestrutura/` (PDF).
   Banco reconstruido do zero (clear + force) pois mover arquivos muda os chunk_ids —
@@ -216,6 +216,10 @@ O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentado
   benchmark atualizado (21 testes), processo BACKLOG.md documentado.
 - [x] **docker-compose:** volume `hf_cache` para o modelo de embeddings (~470MB)
   nao re-baixar a cada recriacao do container; `.dockerignore` exclui docs/ e data/.
-- [ ] **Validacao Docker de ponta a ponta** (`docker-compose up -d --build --remove-orphans`):
-  container antigo `rag-streamlit` (8501) removido como orfao; novo `rag-app` (8000).
-- [ ] **Merge `nova-interface` → `main`** apos validacao Docker.
+- [x] **Validacao Docker de ponta a ponta:** `rag-app` rodando na porta 8000, `rag-ollama`
+  na 11434. `/api/status` retorna `chromadb: true, ollama: true, docs_indexados: 106, pronto: true`.
+- [x] **BUG-010 + FEAT-007 + FEAT-008:** gestao de documentos pela interface — seletor de
+  materia no upload virou input+datalist (permite criar nova materia), botao `···` por arquivo
+  com "Mover para materia" (formulario inline) e "Excluir arquivo" (confirmacao nativa).
+  Endpoints: `POST /api/documentos/mover` e `DELETE /api/documentos`.
+- [x] **Merge `nova-interface` → `master`** concluido.
