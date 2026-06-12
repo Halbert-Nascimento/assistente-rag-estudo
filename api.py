@@ -3,10 +3,16 @@
 Backend FastAPI — Assistente RAG
 Substitui o Streamlit como servidor HTTP.
 Serve a interface React em /frontend/ e expoe a API RAG em /api/.
+
+Convencao de materias: subpastas de docs/ sao materias
+(docs/<materia>/arquivo.md). Arquivos na raiz de docs/ → materia 'geral'.
 """
+import hashlib
 import json
 import mimetypes
 import os
+import re
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -15,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -29,12 +35,15 @@ DATA_DIR.mkdir(exist_ok=True)
 
 STATS_FILE = DATA_DIR / "stats.json"
 HISTORICO_FILE = DATA_DIR / "historico.json"
+MANIFEST_FILE = DATA_DIR / "index_manifest.json"
+
+SUPPORTED_EXTENSIONS = {".pdf", ".md", ".txt"}
 
 app = FastAPI(title="Assistente RAG — API")
 
 
 # ---------------------------------------------------------------------------
-# Lazy singletons (nao bloqueiam o startup)
+# Lazy singletons + warmup no startup
 # ---------------------------------------------------------------------------
 _embedder = None
 _chain = None
@@ -60,6 +69,13 @@ def get_chain():
     return _chain
 
 
+@app.on_event("startup")
+def warmup():
+    # Carrega o modelo de embeddings em background para que a primeira
+    # chamada de API nao trave ~2s (BUG-001)
+    threading.Thread(target=get_embedder, daemon=True).start()
+
+
 # ---------------------------------------------------------------------------
 # Persistencia
 # ---------------------------------------------------------------------------
@@ -83,6 +99,86 @@ _CORES = ["#4F46E5", "#D5603A", "#059669", "#D97706", "#7C3AED", "#0891B2"]
 
 def _cor(idx: int) -> str:
     return _CORES[idx % len(_CORES)]
+
+
+def _docs_dir() -> Path:
+    return ROOT / os.getenv("DOCS_DIR", "docs")
+
+
+def _materia_de(rel_path: Path) -> str:
+    """Materia = primeira subpasta de docs/; arquivos na raiz → 'geral'."""
+    return rel_path.parts[0] if len(rel_path.parts) > 1 else "geral"
+
+
+def _materia_nome(materia_id: str) -> str:
+    return materia_id.replace("-", " ").replace("_", " ").title()
+
+
+def _file_hash(path: Path) -> str:
+    return hashlib.md5(path.read_bytes()).hexdigest()
+
+
+def _limpa_citacao_inline(answer: str) -> str:
+    """Remove citacoes '(Fonte: ...)' que o LLM ainda inclua no texto.
+
+    As fontes sao exibidas estruturadas pela interface (BUG-003)."""
+    answer = re.sub(r"\s*\(Fontes?:[^)]*\)", "", answer)
+    return answer.strip()
+
+
+def _titulo_doc(path: Path) -> str:
+    """Extrai o titulo ('# ...') de um .md; fallback para o nome do arquivo."""
+    try:
+        if path.suffix.lower() == ".md":
+            for ln in path.read_text(encoding="utf-8", errors="ignore").split("\n"):
+                if ln.strip().startswith("# "):
+                    return ln.strip().lstrip("#").strip()
+    except Exception:
+        pass
+    return path.stem.replace("-", " ").replace("_", " ").title()
+
+
+def _run_indexing(force: bool = False) -> dict:
+    """Indexacao incremental: pula arquivos cujo hash nao mudou (FEAT-004)."""
+    from src.loader import load_documents
+
+    docs_dir = _docs_dir()
+    chunks, summary = load_documents(str(docs_dir))
+
+    manifest = _load(MANIFEST_FILE, {})
+    por_arquivo: dict = defaultdict(list)
+    for c in chunks:
+        por_arquivo[c["source_path"]].append(c)
+
+    novos = []
+    pulados = 0
+    for source_path, cs in por_arquivo.items():
+        try:
+            h = _file_hash(docs_dir / source_path)
+        except OSError:
+            h = None
+        if not force and h is not None and manifest.get(source_path) == h:
+            pulados += 1
+            continue
+        novos.extend(cs)
+        if h is not None:
+            manifest[source_path] = h
+
+    if novos:
+        result = get_embedder().embed_and_store(novos)
+    else:
+        result = {"stored": 0, "failed": 0, "total": 0}
+
+    _save(MANIFEST_FILE, manifest)
+
+    return {
+        "ok": True,
+        "chunks": result["stored"],
+        "arquivos": summary["total_sucesso"] - pulados,
+        "pulados": pulados,
+        "falhas": summary["total_falhas"],
+        "arquivos_com_erro": [f["arquivo"] for f in summary.get("arquivos_falhados", [])],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -116,45 +212,69 @@ async def status():
 
 
 @app.post("/api/indexar")
-async def indexar():
-    from src.loader import load_documents
-    docs_dir = os.getenv("DOCS_DIR", "docs")
-    chunks, summary = load_documents(docs_dir)
-    result = get_embedder().embed_and_store(chunks)
-    return {
-        "ok": True,
-        "chunks": result["stored"],
-        "arquivos": summary["total_sucesso"],
-        "falhas": summary["total_falhas"],
-        "arquivos_com_erro": [f["arquivo"] for f in summary.get("arquivos_falhados", [])],
-    }
+async def indexar(force: bool = False):
+    return _run_indexing(force=force)
+
+
+@app.post("/api/upload")
+async def upload(file: UploadFile = File(...), materia: str = Form("")):
+    """Recebe um documento, salva em docs/<materia>/ e indexa (FEAT-002)."""
+    nome = Path(file.filename or "").name  # remove qualquer caminho embutido
+    if not nome:
+        return JSONResponse({"ok": False, "erro": "Arquivo sem nome."}, status_code=400)
+
+    ext = Path(nome).suffix.lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        return JSONResponse(
+            {"ok": False, "erro": f"Formato '{ext}' nao suportado. Use .pdf, .md ou .txt."},
+            status_code=400,
+        )
+
+    # Sanitiza a materia (vira nome de pasta)
+    materia = re.sub(r"[^a-zA-Z0-9_\- ]", "", materia.strip()).replace(" ", "-").lower()
+
+    destino_dir = _docs_dir() / materia if materia and materia != "geral" else _docs_dir()
+    destino_dir.mkdir(parents=True, exist_ok=True)
+    destino = destino_dir / nome
+
+    conteudo = await file.read()
+    destino.write_bytes(conteudo)
+
+    # Indexa apenas o que mudou (o arquivo novo)
+    resultado = _run_indexing()
+    resultado["arquivo_salvo"] = str(destino.relative_to(_docs_dir()))
+    return resultado
 
 
 class ChatRequest(BaseModel):
     pergunta: str
     session_id: Optional[str] = None
+    materia: Optional[str] = None
 
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     pergunta = req.pergunta.strip()
     session_id = req.session_id or str(uuid.uuid4())
+    materia = (req.materia or "").strip() or None
 
     if not pergunta:
         return JSONResponse({"erro": "pergunta vazia"}, status_code=400)
 
     t0 = time.perf_counter()
     embedder = get_embedder()
+    where = {"materia": materia} if materia else None
 
-    # Similaridade top-1 (busca rapida, sem LLM)
-    docs_sim = embedder.search(pergunta, n_results=1)
+    # Similaridade top-1 (busca rapida, sem LLM) — respeita o escopo
+    docs_sim = embedder.search(pergunta, n_results=1, where=where)
     top_sim = round(docs_sim[0]["similarity"], 3) if docs_sim else 0.0
 
-    # Pipeline RAG completo
-    result = get_chain().ask(pergunta)
+    # Pipeline RAG completo (com escopo de materia, se informado)
+    result = get_chain().ask(pergunta, materia=materia)
     latencia_ms = round((time.perf_counter() - t0) * 1000)
 
     recusou = result["context_chunks"] == 0
+    answer = _limpa_citacao_inline(result["answer"]) if not recusou else result["answer"]
     fontes = [{"doc": s, "sim": top_sim} for s in result.get("sources", [])]
 
     # Persistir stats
@@ -167,22 +287,22 @@ async def chat(req: ChatRequest):
         "latencia_ms": latencia_ms,
         "timestamp": datetime.now().isoformat(),
         "session_id": session_id,
+        "materia": materia,
         "fontes": result.get("sources", []),
     })
     _save(STATS_FILE, stats_data)
 
-    # Persistir historico
+    # Persistir historico (mensagens completas, incluindo fontes — BUG-002)
     hist_data = _load(HISTORICO_FILE, {"conversas": []})
     conv = next((c for c in hist_data["conversas"] if c["id"] == session_id), None)
     if conv is None:
-        tema_id = Path(result["sources"][0]).stem if result.get("sources") else "geral"
         conv = {
             "id": session_id,
             "titulo": pergunta[:80],
             "quando": datetime.now().strftime("%d/%m/%Y"),
             "msgs": 0,
             "confianca": 0.0,
-            "tema": tema_id,
+            "materia": materia or "geral",
             "mensagens": [],
         }
         hist_data["conversas"].insert(0, conv)
@@ -190,26 +310,32 @@ async def chat(req: ChatRequest):
     conv["mensagens"].append({"role": "user", "content": pergunta})
     conv["mensagens"].append({
         "role": "assistant",
-        "content": result["answer"],
+        "content": answer,
         "sim": top_sim,
+        "recusou": recusou,
+        "fontes": fontes,
     })
     conv["msgs"] = len(conv["mensagens"])
-    sims = [m["sim"] for m in conv["mensagens"] if "sim" in m and not recusou]
+    sims = [
+        m["sim"] for m in conv["mensagens"]
+        if m.get("role") == "assistant" and not m.get("recusou") and m.get("sim")
+    ]
     conv["confianca"] = round(sum(sims) / len(sims), 3) if sims else 0.0
     _save(HISTORICO_FILE, hist_data)
 
     return {
-        "resposta": result["answer"],
+        "resposta": answer,
         "fontes": fontes,
         "sim": top_sim,
         "recusou": recusou,
         "latencia_ms": latencia_ms,
+        "session_id": session_id,
     }
 
 
 @app.get("/api/documentos")
 async def documentos():
-    docs_dir = Path(os.getenv("DOCS_DIR", "docs"))
+    docs_dir = _docs_dir()
     embedder = get_embedder()
 
     # Mapear chunks por source (uma unica query no ChromaDB)
@@ -224,35 +350,35 @@ async def documentos():
         chunks_por_source = {}
 
     arquivos = []
-    temas = []
+    materias: dict = {}  # id → dados da materia
 
     if docs_dir.exists():
         for f in sorted(docs_dir.rglob("*")):
-            if not f.is_file():
-                continue
-            if f.suffix.lower() not in {".pdf", ".md", ".txt"}:
+            if not f.is_file() or f.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 continue
 
-            tema_id = f.stem
-            tema_nome = f.stem.replace("-", " ").replace("_", " ").title()
+            rel = f.relative_to(docs_dir)
+            materia_id = _materia_de(rel)
             chunks_count = chunks_por_source.get(f.name, 0)
             indexado = chunks_count > 0
 
-            if not any(t["id"] == tema_id for t in temas):
-                temas.append({
-                    "id": tema_id,
-                    "nome": tema_nome,
-                    "descricao": f"Conteudo de {tema_nome}",
-                    "cor": _cor(len(temas)),
-                    "progresso": 100 if indexado else 0,
-                    "aulas": 1,
+            if materia_id not in materias:
+                materias[materia_id] = {
+                    "id": materia_id,
+                    "nome": _materia_nome(materia_id),
+                    "descricao": "",
+                    "cor": _cor(len(materias)),
+                    "progresso": 0,
+                    "aulas": 0,
                     "docs": 0,
                     "dominado": False,
-                })
-
-            for t in temas:
-                if t["id"] == tema_id:
-                    t["docs"] += 1
+                    "_indexados": 0,
+                }
+            m = materias[materia_id]
+            m["docs"] += 1
+            m["aulas"] += 1
+            if indexado:
+                m["_indexados"] += 1
 
             size = f.stat().st_size
             size_str = f"{size // 1024}KB" if size > 1024 else f"{size}B"
@@ -263,10 +389,18 @@ async def documentos():
                 "tipo": f.suffix.lower().lstrip("."),
                 "tamanho": size_str,
                 "data": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d/%m/%Y"),
-                "tema": tema_id,
+                "tema": materia_id,
                 "chunks": chunks_count,
                 "indexado": indexado,
             })
+
+    # Progresso da materia = % de arquivos dela ja indexados
+    temas = []
+    for m in materias.values():
+        m["progresso"] = round(m["_indexados"] / m["docs"] * 100) if m["docs"] else 0
+        m["descricao"] = f"{m['docs']} documento(s) nesta materia"
+        m.pop("_indexados")
+        temas.append(m)
 
     stats = embedder.get_stats()
     return {
@@ -317,13 +451,22 @@ async def api_stats():
         {"faixa": "Recusadas",       "sub": "sim < 0.68", "v": recusadas, "cor": "var(--low)"},
     ]
 
-    sugestoes = [
-        "O que e aprendizado supervisionado?",
-        "Como funciona o K-Means?",
-        "Quais sao os 4 pilares do Reinforcement Learning?",
-        "Para que serve o StandardScaler?",
-        "O que e o Metodo do Cotovelo?",
-    ]
+    # Sugestoes dinamicas: titulos dos 3 documentos mais recentes (FEAT-005)
+    docs_dir = _docs_dir()
+    sugestoes = []
+    if docs_dir.exists():
+        recentes = sorted(
+            (f for f in docs_dir.rglob("*") if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )[:3]
+        sugestoes = [f"Me explique os pontos principais de {_titulo_doc(f)}" for f in recentes]
+    if not sugestoes:
+        sugestoes = [
+            "O que e aprendizado supervisionado?",
+            "Como funciona o K-Means?",
+            "Quais sao os 4 pilares do Reinforcement Learning?",
+        ]
 
     return {
         "perguntas": total,

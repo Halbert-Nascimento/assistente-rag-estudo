@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-12T07:49:31.812108",
-  "modo": "recuperacao_apenas",
+  "timestamp": "2026-06-12T11:02:12.019671",
+  "modo": "completo",
   "modelo_embeddings": "paraphrase-multilingual-MiniLM-L12-v2",
   "total_chunks_db": 62,
   "resultados": [
@@ -9,118 +9,278 @@
       "pergunta": "O que e o Metodo do Cotovelo e para que ele e usado no K-Means?",
       "dificuldade": "facil",
       "escopo": "dentro",
-      "recuperacao_ms": 36.5,
+      "recuperacao_ms": 40.2,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 2501.2,
+      "latencia_total_ms": 2541.4,
+      "resposta_preview": "O Método do Cotovelo é uma técnica usada para determinar a quantidade ideal de clusters (K) em um conjunto de dados. Ele consiste em rodar o algoritmo K-Means com diferentes valores de K e analisar o ",
+      "fontes_retornadas": [
+        "aula-06-aprendizado-nao-supervisionado.md"
+      ],
+      "keywords": {
+        "encontradas": 5,
+        "total": 5,
+        "cobertura": 1.0,
+        "keywords_ok": [
+          "cotovelo",
+          "clusters",
+          "k-means",
+          "ideal",
+          "grafico"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 2,
       "pergunta": "Por que e obrigatorio aplicar o StandardScaler antes de rodar o K-Means?",
       "dificuldade": "facil",
       "escopo": "dentro",
-      "recuperacao_ms": 19.5,
+      "recuperacao_ms": 24.1,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 1846.9,
+      "latencia_total_ms": 1871.0,
+      "resposta_preview": "De acordo com os documentos, é obrigatório aplicar o `StandardScaler` para colocar todas as variáveis na mesma escala matemática, evitando que números muito grandes (como a renda anual) esmaguem as gr",
+      "fontes_retornadas": [
+        "aula-06-aprendizado-nao-supervisionado.md"
+      ],
+      "keywords": {
+        "encontradas": 4,
+        "total": 5,
+        "cobertura": 0.8,
+        "keywords_ok": [
+          "escala",
+          "grandezas",
+          "esmag",
+          "numeros"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 3,
       "pergunta": "Quais sao os 4 pilares estruturais do Reinforcement Learning apresentados na aula?",
       "dificuldade": "facil",
       "escopo": "dentro",
-      "recuperacao_ms": 18.8,
+      "recuperacao_ms": 20.2,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 1935.0,
+      "latencia_total_ms": 1955.2,
+      "resposta_preview": "Os quatro pilares estruturais do Reinforcement Learning são:  - **Agente** — o investidor - **Ambiente** — mercado financeiro - **Estado** — se a ação subiu ou desceu - **Ação** — comprar, vender ou m",
+      "fontes_retornadas": [
+        "aula-07-reinforcement-learning.md"
+      ],
+      "keywords": {
+        "encontradas": 4,
+        "total": 4,
+        "cobertura": 1.0,
+        "keywords_ok": [
+          "agente",
+          "ambiente",
+          "estado",
+          "acao"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 4,
       "pergunta": "O que e o Silhouette Score e como interpretar seus valores?",
       "dificuldade": "medio",
       "escopo": "dentro",
-      "recuperacao_ms": 15.6,
+      "recuperacao_ms": 16.5,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 3193.0,
+      "latencia_total_ms": 3209.5,
+      "resposta_preview": "O Silhouette Score é uma métrica usada para avaliar a qualidade da separação dos agrupamentos. Ele varia de -1 a +1, onde um resultado próximo a +1 indica que os dados do cluster estão densos e bem se",
+      "fontes_retornadas": [
+        "aula-06-aprendizado-nao-supervisionado.md"
+      ],
+      "keywords": {
+        "encontradas": 5,
+        "total": 6,
+        "cobertura": 0.83,
+        "keywords_ok": [
+          "silhouette",
+          "separacao",
+          "-1",
+          "+1",
+          "qualidade"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 5,
       "pergunta": "O que e o Epsilon Decay no Reinforcement Learning e por que ele inicia com valor alto?",
       "dificuldade": "medio",
       "escopo": "dentro",
-      "recuperacao_ms": 16.0,
+      "recuperacao_ms": 17.9,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 2176.4,
+      "latencia_total_ms": 2194.3,
+      "resposta_preview": "O Epsilon Decay é a taxa de exploração, que inicia alta (valor 1) porque o agente não conhece o mercado e precisa \"dar tiros no escuro\" para testar possibilidades. Com o passar dos episódios, esse val",
+      "fontes_retornadas": [
+        "aula-07-reinforcement-learning.md"
+      ],
+      "keywords": {
+        "encontradas": 5,
+        "total": 5,
+        "cobertura": 1.0,
+        "keywords_ok": [
+          "epsilon",
+          "exploracao",
+          "decai",
+          "episodios",
+          "conservador"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 6,
       "pergunta": "Qual a diferenca entre RAG, Fine-Tuning e RLHF como tecnicas de customizacao de modelos de IA?",
       "dificuldade": "medio",
       "escopo": "dentro",
-      "recuperacao_ms": 19.8,
+      "recuperacao_ms": 20.6,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 6131.8,
+      "latencia_total_ms": 6152.4,
+      "resposta_preview": "As técnicas de customização de modelos de IA mencionadas são:  - **RAG (Retrieval-Augmented Generation):** Consiste em injetar documentos reais (PDFs, apostilas) como contexto obrigatório antes do mod",
+      "fontes_retornadas": [
+        "aula-09-ia-generativa.md"
+      ],
+      "keywords": {
+        "encontradas": 6,
+        "total": 6,
+        "cobertura": 1.0,
+        "keywords_ok": [
+          "rag",
+          "fine-tuning",
+          "rlhf",
+          "alucinacao",
+          "retreinamento",
+          "humano"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 7,
       "pergunta": "Explique o funcionamento do mecanismo de atencao (Attention) e qual artigo o introduziu.",
       "dificuldade": "dificil",
       "escopo": "dentro",
-      "recuperacao_ms": 19.5,
+      "recuperacao_ms": 22.4,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 2224.2,
+      "latencia_total_ms": 2246.6,
+      "resposta_preview": "O mecanismo de atenção (Attention) foi introduzido no artigo \"Attention is All You Need\" e foca no contexto da frase, permitindo que o modelo entenda a relação entre as palavras. Por exemplo, na frase",
+      "fontes_retornadas": [
+        "aula-08-redes-neurais-visao-computacional.md",
+        "aula-09-ia-generativa.md"
+      ],
+      "keywords": {
+        "encontradas": 3,
+        "total": 5,
+        "cobertura": 0.6,
+        "keywords_ok": [
+          "attention",
+          "contexto",
+          "banco"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 8,
       "pergunta": "Por que redes neurais sao chamadas de 'caixa preta' e qual o problema disso em areas criticas?",
       "dificuldade": "dificil",
       "escopo": "dentro",
-      "recuperacao_ms": 18.9,
+      "recuperacao_ms": 22.0,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 3484.0,
+      "latencia_total_ms": 3506.0,
+      "resposta_preview": "As redes neurais são chamadas de \"Caixa Preta\" porque possuem a característica de dificuldade de explicar como a máquina deduziu sua resposta final. Isso é um obstáculo real e atual, especialmente par",
+      "fontes_retornadas": [
+        "aula-08-redes-neurais-visao-computacional.md"
+      ],
+      "keywords": {
+        "encontradas": 3,
+        "total": 5,
+        "cobertura": 0.6,
+        "keywords_ok": [
+          "caixa preta",
+          "saude",
+          "judiciario"
+        ]
+      },
+      "passou": true
     },
     {
       "id": 9,
       "pergunta": "Qual e a receita tradicional do pao de queijo mineiro?",
       "dificuldade": "fora_do_escopo",
       "escopo": "fora",
-      "recuperacao_ms": 14.5,
+      "recuperacao_ms": 19.4,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 20.4,
+      "latencia_total_ms": 39.8,
+      "resposta_preview": "Nao encontrei informacao sobre isso nos documentos disponibilizados.",
+      "fontes_retornadas": [],
+      "keywords": {
+        "encontradas": 0,
+        "total": 0,
+        "cobertura": null
+      },
+      "recusou_corretamente": true,
+      "passou": true
     },
     {
       "id": 10,
       "pergunta": "Quem ganhou a Copa do Mundo de futebol em 2022?",
       "dificuldade": "fora_do_escopo",
       "escopo": "fora",
-      "recuperacao_ms": 15.8,
+      "recuperacao_ms": 18.2,
       "chunks_encontrados": 4,
       "fonte_correta": true,
-      "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "modo": "completo",
+      "geracao_ms": 21.7,
+      "latencia_total_ms": 39.9,
+      "resposta_preview": "Nao encontrei informacao sobre isso nos documentos disponibilizados.",
+      "fontes_retornadas": [],
+      "keywords": {
+        "encontradas": 0,
+        "total": 0,
+        "cobertura": null
+      },
+      "recusou_corretamente": true,
+      "passou": true
     }
   ],
   "resumo": {
     "total_perguntas": 10,
     "in_scope": 8,
     "out_of_scope": 2,
-    "passou_in_scope": 0,
-    "recusas_corretas": 0,
-    "lat_media_ms": null
+    "passou_in_scope": 8,
+    "recusas_corretas": 2,
+    "lat_media_ms": 2375.6
   }
 }

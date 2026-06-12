@@ -129,6 +129,7 @@ class DocumentEmbedder:
                 {
                     'source':      c['source'],
                     'source_path': c['source_path'],
+                    'materia':     c.get('materia', 'geral'),
                     'timestamp':   c['timestamp'],
                     'char_count':  str(c.get('char_count', '')),
                 }
@@ -149,9 +150,14 @@ class DocumentEmbedder:
             # Nao relanca: retorna 0 para que o chamador registre a falha
             return 0
 
-    def search(self, query: str, n_results: int = 5) -> List[Dict]:
+    def search(self, query: str, n_results: int = 5, where: Dict = None) -> List[Dict]:
         """
         Busca documentos por similaridade semantica.
+
+        Args:
+            where: filtro opcional de metadados do ChromaDB,
+                   ex: {'materia': 'machine-learning'} restringe a busca
+                   aos chunks daquela materia.
 
         Retorna lista vazia (nao lanca excecao) em qualquer caso de falha.
         """
@@ -168,6 +174,7 @@ class DocumentEmbedder:
             results = self.collection.query(
                 query_embeddings=[query_vec],
                 n_results=effective_n,
+                where=where,
                 include=['documents', 'metadatas', 'distances'],
             )
 

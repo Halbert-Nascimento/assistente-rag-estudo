@@ -1,15 +1,42 @@
 /* ============================================================
    Views: Início, Temas, Documentos, Desempenho, Histórico
    Todos os dados vêm da API (/api/*) — sem mock local.
+   Convenção: temas === null → carregando; [] → vazio de fato.
    ============================================================ */
 
-/* ---------------- INÍCIO / DASHBOARD ---------------- */
-function HomeView({ goto, ask, temas }) {
-  const [stats, setStats] = React.useState(null);
-  const [historico, setHistorico] = React.useState([]);
+function Loading({ label }) {
+  return (
+    <div
+      className="card"
+      style={{
+        padding: 28,
+        textAlign: "center",
+        color: "var(--ink-3)",
+        fontSize: 14,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+      }}
+    >
+      <span className="dots">
+        <span />
+        <span />
+        <span />
+      </span>
+      {label || "Carregando…"}
+    </div>
+  );
+}
 
+/* ---------------- INÍCIO / DASHBOARD ---------------- */
+function HomeView({ goto, ask, temas, openConversation }) {
+  const [stats, setStats] = React.useState(null);
+  const [historico, setHistorico] = React.useState(null);
+
+  const temasList = temas || [];
   const byId = (id) =>
-    temas.find((t) => t.id === id) || { nome: id || "Geral", cor: "#888", id };
+    temasList.find((t) => t.id === id) || { nome: id || "Geral", cor: "#888", id };
 
   React.useEffect(() => {
     fetch("/api/stats")
@@ -19,18 +46,12 @@ function HomeView({ goto, ask, temas }) {
     fetch("/api/historico")
       .then((r) => r.json())
       .then((d) => setHistorico(d.conversas || []))
-      .catch(() => {});
+      .catch(() => setHistorico([]));
   }, []);
 
   const m = stats || {};
-  const emFoco = temas
-    .filter((t) => !t.dominado && t.progresso > 0)
-    .slice(0, 2);
-  const sugestoes = m.sugestoes || [
-    "O que é aprendizado supervisionado?",
-    "Como funciona o K-Means?",
-    "Quais são os 4 pilares do Reinforcement Learning?",
-  ];
+  const emFoco = temasList.filter((t) => t.progresso > 0).slice(0, 2);
+  const sugestoes = m.sugestoes || [];
 
   return (
     <div className="page rise">
@@ -63,7 +84,7 @@ function HomeView({ goto, ask, temas }) {
         </button>
       </div>
 
-      {/* Sugestões rápidas */}
+      {/* Sugestões rápidas (3, baseadas nos últimos documentos) */}
       <div
         className="card"
         style={{
@@ -90,11 +111,9 @@ function HomeView({ goto, ask, temas }) {
           <Icon name="chat" size={20} />
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>
-            Tire uma dúvida agora
-          </div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Tire uma dúvida agora</div>
           <div style={{ fontSize: 13, color: "var(--ink-3)" }}>
-            Sugestões com base nas aulas indexadas:
+            Sugestões com base nos últimos documentos processados:
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -105,12 +124,7 @@ function HomeView({ goto, ask, temas }) {
               style={{ cursor: "pointer" }}
               onClick={() => ask(s)}
             >
-              <Icon
-                name="arrowR"
-                size={13}
-                style={{ color: "var(--accent)" }}
-              />{" "}
-              {s}
+              <Icon name="arrowR" size={13} style={{ color: "var(--accent)" }} /> {s}
             </button>
           ))}
         </div>
@@ -118,32 +132,10 @@ function HomeView({ goto, ask, temas }) {
 
       {/* Stats */}
       <div className="perf-grid" style={{ marginTop: 24 }}>
-        <StatCard
-          icon="chat"
-          label="Perguntas feitas"
-          value={m.perguntas || 0}
-          delta={m.perguntasDelta}
-        />
-        <StatCard
-          icon="target"
-          label="Confiança média"
-          value={Math.round((m.confiancaMedia || 0) * 100)}
-          suffix="%"
-          tint="var(--high)"
-        />
-        <StatCard
-          icon="clock"
-          label="Tempo médio de resposta"
-          value={m.tempoMedio || "—"}
-          tint="var(--accent)"
-        />
-        <StatCard
-          icon="layers"
-          label="Cobertura do material"
-          value={Math.round((m.cobertura || 0) * 100)}
-          suffix="%"
-          tint="var(--brand-600)"
-        />
+        <StatCard icon="chat" label="Perguntas feitas" value={m.perguntas || 0} delta={m.perguntasDelta} />
+        <StatCard icon="target" label="Confiança média" value={Math.round((m.confiancaMedia || 0) * 100)} suffix="%" tint="var(--high)" />
+        <StatCard icon="clock" label="Tempo médio de resposta" value={m.tempoMedio || "—"} tint="var(--accent)" />
+        <StatCard icon="layers" label="Cobertura do material" value={Math.round((m.cobertura || 0) * 100)} suffix="%" tint="var(--brand-600)" />
       </div>
 
       <div className="g2" style={{ marginTop: 24 }}>
@@ -155,17 +147,13 @@ function HomeView({ goto, ask, temas }) {
             onAction={() => goto("temas")}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {emFoco.length === 0 && (
+            {temas === null ? (
+              <Loading label="Carregando documentos…" />
+            ) : temasList.length === 0 ? (
               <div
                 className="card"
-                style={{
-                  padding: 20,
-                  color: "var(--ink-3)",
-                  textAlign: "center",
-                  fontSize: 14,
-                }}
+                style={{ padding: 20, color: "var(--ink-3)", textAlign: "center", fontSize: 14 }}
               >
-                <Icon name="docs" size={22} style={{ marginBottom: 8, display: "block", margin: "0 auto 8px" }} />
                 Nenhum documento indexado ainda.{" "}
                 <button
                   className="btn btn-ghost"
@@ -175,70 +163,40 @@ function HomeView({ goto, ask, temas }) {
                   Indexar agora
                 </button>
               </div>
-            )}
-            {emFoco.map((t) => (
-              <div
-                className="card"
-                key={t.id}
-                style={{
-                  padding: 16,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 15,
-                  cursor: "pointer",
-                }}
-                onClick={() => goto("temas")}
-              >
+            ) : (
+              emFoco.map((t) => (
                 <div
-                  className="tema-ic"
-                  style={{ background: t.cor, margin: 0, width: 44, height: 44 }}
+                  className="card"
+                  key={t.id}
+                  style={{ padding: 16, display: "flex", alignItems: "center", gap: 15, cursor: "pointer" }}
+                  onClick={() => goto("temas")}
                 >
-                  <Icon name="book" size={20} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      rowGap: 4,
-                    }}
-                  >
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>
-                      {t.nome}
-                    </span>
-                    <span className="tag tag-mid" style={{ flex: "none" }}>
-                      Em progresso
-                    </span>
+                  <div className="tema-ic" style={{ background: t.cor, margin: 0, width: 44, height: 44 }}>
+                    <Icon name="book" size={20} />
                   </div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      color: "var(--ink-3)",
-                      margin: "5px 0 10px",
-                    }}
-                  >
-                    {t.aulas} aula(s) · {t.docs} documento(s)
-                  </div>
-                  <div className="tema-prog">
-                    <div className="bar">
-                      <span
-                        style={{ width: t.progresso + "%", background: t.cor }}
-                      />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", rowGap: 4 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>{t.nome}</span>
+                      {t.progresso >= 100 ? (
+                        <span className="tag tag-high" style={{ flex: "none" }}>Indexada</span>
+                      ) : (
+                        <span className="tag tag-mid" style={{ flex: "none" }}>Em progresso</span>
+                      )}
                     </div>
-                    <span className="pct" style={{ color: t.cor }}>
-                      {t.progresso}%
-                    </span>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", margin: "5px 0 10px" }}>
+                      {t.docs} documento(s)
+                    </div>
+                    <div className="tema-prog">
+                      <div className="bar">
+                        <span style={{ width: t.progresso + "%", background: t.cor }} />
+                      </div>
+                      <span className="pct" style={{ color: t.cor }}>{t.progresso}%</span>
+                    </div>
                   </div>
+                  <Icon name="chevR" size={18} style={{ color: "var(--ink-3)" }} />
                 </div>
-                <Icon
-                  name="chevR"
-                  size={18}
-                  style={{ color: "var(--ink-3)" }}
-                />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -249,36 +207,27 @@ function HomeView({ goto, ask, temas }) {
             action="Histórico →"
             onAction={() => goto("historico")}
           />
-          {historico.length === 0 ? (
+          {historico === null ? (
+            <Loading label="Carregando conversas…" />
+          ) : historico.length === 0 ? (
             <div
               className="card"
-              style={{
-                padding: 28,
-                textAlign: "center",
-                color: "var(--ink-3)",
-                fontSize: 14,
-              }}
+              style={{ padding: 28, textAlign: "center", color: "var(--ink-3)", fontSize: 14 }}
             >
               Nenhuma conversa ainda. Comece fazendo uma pergunta!
             </div>
           ) : (
             <div className="card" style={{ padding: "4px 16px" }}>
               {historico.slice(0, 5).map((c) => {
-                const t = byId(c.tema);
+                const t = byId(c.materia || c.tema);
                 return (
                   <div
                     className="list-row"
                     key={c.id}
                     style={{ cursor: "pointer" }}
-                    onClick={() => goto("chat")}
+                    onClick={() => openConversation(c.id)}
                   >
-                    <div
-                      className="list-ic"
-                      style={{
-                        background: t.cor + "1A",
-                        color: t.cor,
-                      }}
-                    >
+                    <div className="list-ic" style={{ background: t.cor + "1A", color: t.cor }}>
                       <Icon name="chat" size={17} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -310,10 +259,11 @@ function HomeView({ goto, ask, temas }) {
 }
 
 /* ---------------- TEMAS ---------------- */
-function TemasView({ goto, ask, temas }) {
+function TemasView({ goto, temas, openMateria }) {
+  const temasList = temas || [];
   const totalProg =
-    temas.length > 0
-      ? Math.round(temas.reduce((s, t) => s + t.progresso, 0) / temas.length)
+    temasList.length > 0
+      ? Math.round(temasList.reduce((s, t) => s + t.progresso, 0) / temasList.length)
       : 0;
 
   return (
@@ -321,19 +271,19 @@ function TemasView({ goto, ask, temas }) {
       <div className="h-eyebrow">Organização por matéria</div>
       <h1 className="h1">Temas da disciplina</h1>
       <p className="sub">
-        Cada tema corresponde a um documento indexado. Progresso médio geral:{" "}
-        <b>{totalProg}%</b>.
+        Cada matéria corresponde a uma subpasta de <code>docs/</code> e pode
+        conter vários documentos. Clique numa matéria para abrir um chat com
+        escopo apenas nos documentos dela. Progresso médio: <b>{totalProg}%</b>.
       </p>
 
-      {temas.length === 0 ? (
+      {temas === null ? (
+        <div style={{ marginTop: 24 }}>
+          <Loading label="Carregando matérias…" />
+        </div>
+      ) : temasList.length === 0 ? (
         <div
           className="card"
-          style={{
-            marginTop: 24,
-            padding: 40,
-            textAlign: "center",
-            color: "var(--ink-3)",
-          }}
+          style={{ marginTop: 24, padding: 40, textAlign: "center", color: "var(--ink-3)" }}
         >
           <Icon
             name="docs"
@@ -343,67 +293,46 @@ function TemasView({ goto, ask, temas }) {
           Nenhum documento encontrado na pasta{" "}
           <code style={{ fontFamily: "monospace" }}>docs/</code>.
           <br />
-          Adicione arquivos .md, .pdf ou .txt e clique em{" "}
-          <b>Processar Documentos</b>.
+          Adicione arquivos .md, .pdf ou .txt e clique em <b>Processar Documentos</b>.
         </div>
       ) : (
         <div className="tema-grid" style={{ marginTop: 24 }}>
-          {temas.map((t) => (
-            <div
-              className="card tema-card"
-              key={t.id}
-              onClick={() => ask("Me dê um resumo de " + t.nome)}
-            >
+          {temasList.map((t) => (
+            <div className="card tema-card" key={t.id} onClick={() => openMateria(t)}>
               <div className="tema-top" style={{ background: t.cor }} />
               <div className="tema-in">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div
-                    className="tema-ic"
-                    style={{ background: t.cor }}
-                  >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div className="tema-ic" style={{ background: t.cor }}>
                     <Icon name="book" size={19} />
                   </div>
-                  {t.dominado ? (
+                  {t.progresso >= 100 ? (
                     <span className="tag tag-high">
-                      <Icon
-                        name="check"
-                        size={11}
-                        style={{ verticalAlign: "-1px" }}
-                      />{" "}
-                      Dominado
+                      <Icon name="check" size={11} style={{ verticalAlign: "-1px" }} /> Indexada
                     </span>
                   ) : t.progresso === 0 ? (
-                    <span className="tag tag-muted">Não iniciado</span>
+                    <span className="tag tag-muted">Não indexada</span>
                   ) : (
-                    <span className="tag tag-mid">Em progresso</span>
+                    <span className="tag tag-mid">Parcial</span>
                   )}
                 </div>
                 <div className="tema-name">{t.nome}</div>
                 <div className="tema-desc">{t.descricao}</div>
                 <div className="tema-meta">
-                  <span>
-                    <b>{t.aulas}</b> aula(s)
-                  </span>
-                  <span>
-                    <b>{t.docs}</b> doc(s)
-                  </span>
+                  <span><b>{t.docs}</b> doc(s)</span>
                 </div>
                 <div className="tema-prog">
                   <div className="bar">
-                    <span
-                      style={{ width: t.progresso + "%", background: t.cor }}
-                    />
+                    <span style={{ width: t.progresso + "%", background: t.cor }} />
                   </div>
-                  <span className="pct" style={{ color: t.cor }}>
-                    {t.progresso}%
-                  </span>
+                  <span className="pct" style={{ color: t.cor }}>{t.progresso}%</span>
                 </div>
+                <button
+                  className="btn btn-ghost"
+                  style={{ marginTop: 12, fontSize: 13, padding: "7px 12px" }}
+                  onClick={(e) => { e.stopPropagation(); openMateria(t); }}
+                >
+                  <Icon name="chat" size={14} /> Perguntar sobre esta matéria
+                </button>
               </div>
             </div>
           ))}
@@ -414,31 +343,26 @@ function TemasView({ goto, ask, temas }) {
 }
 
 /* ---------------- DOCUMENTOS ---------------- */
-function DocumentosView({ temas }) {
-  const [dados, setDados] = React.useState({
-    arquivos: [],
-    total: 0,
-    indexados: 0,
-    chunks: 0,
-  });
+function DocumentosView({ temas, onIndexed }) {
+  const [dados, setDados] = React.useState(null);
   const [q, setQ] = React.useState("");
   const [filtro, setFiltro] = React.useState("todos");
   const [indexando, setIndexando] = React.useState(false);
+  const [enviando, setEnviando] = React.useState(false);
   const [resultado, setResultado] = React.useState(null);
+  const [uploadMateria, setUploadMateria] = React.useState("");
+  const fileRef = React.useRef(null);
 
+  const temasList = (dados && dados.temas) || temas || [];
   const byId = (id) =>
-    temas.find((t) => t.id === id) || { nome: id || "Geral", cor: "#888", id };
-  const tipoCor = {
-    md: "var(--brand-600)",
-    pdf: "var(--accent)",
-    txt: "var(--ink-2)",
-  };
+    temasList.find((t) => t.id === id) || { nome: id || "Geral", cor: "#888", id };
+  const tipoCor = { md: "var(--brand-600)", pdf: "var(--accent)", txt: "var(--ink-2)" };
 
   function fetchDocs() {
     fetch("/api/documentos")
       .then((r) => r.json())
       .then(setDados)
-      .catch(() => {});
+      .catch(() => setDados({ arquivos: [], total: 0, indexados: 0, chunks: 0, temas: [] }));
   }
 
   React.useEffect(fetchDocs, []);
@@ -451,6 +375,7 @@ function DocumentosView({ temas }) {
       const data = await res.json();
       setResultado(data);
       fetchDocs();
+      onIndexed && onIndexed();
     } catch {
       setResultado({ ok: false, erro: "Erro ao conectar ao servidor." });
     } finally {
@@ -458,50 +383,56 @@ function DocumentosView({ temas }) {
     }
   }
 
-  let rows = dados.arquivos || [];
+  async function enviarArquivo(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // permite reenviar o mesmo arquivo
+    if (!file) return;
+
+    setEnviando(true);
+    setResultado(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("materia", uploadMateria);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const data = await res.json();
+      setResultado(data);
+      fetchDocs();
+      onIndexed && onIndexed();
+    } catch {
+      setResultado({ ok: false, erro: "Erro ao enviar o arquivo." });
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const d0 = dados || { arquivos: [], total: 0, indexados: 0, chunks: 0 };
+  let rows = d0.arquivos || [];
   if (filtro === "indexados") rows = rows.filter((d) => d.indexado === true);
   if (filtro === "pendentes") rows = rows.filter((d) => !d.indexado);
-  if (q.trim())
-    rows = rows.filter((d) =>
-      d.nome.toLowerCase().includes(q.toLowerCase())
-    );
+  if (q.trim()) rows = rows.filter((d) => d.nome.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div className="page rise">
       <div className="h-eyebrow">Base de conhecimento</div>
       <h1 className="h1">Documentos de treino</h1>
       <p className="sub">
-        Tudo o que o assistente pode consultar. Cada arquivo é dividido em{" "}
+        Tudo o que o assistente pode consultar, organizado por matéria
+        (subpastas de <code>docs/</code>). Cada arquivo é dividido em{" "}
         <b>trechos (chunks)</b> e convertido em vetores no ChromaDB.
+        O processamento é <b>incremental</b>: só arquivos novos ou alterados
+        são reprocessados.
       </p>
 
       {/* Stats rápidas */}
-      <div
-        className="perf-grid"
-        style={{ marginTop: 22, gridTemplateColumns: "repeat(4,1fr)" }}
-      >
-        <StatCard icon="docs" label="Documentos" value={dados.total} />
-        <StatCard
-          icon="check"
-          label="Indexados"
-          value={dados.indexados}
-          tint="var(--high)"
-        />
-        <StatCard
-          icon="layers"
-          label="Trechos vetorizados"
-          value={dados.chunks}
-          tint="var(--brand-600)"
-        />
-        <StatCard
-          icon="clock"
-          label="Pendentes"
-          value={dados.total - dados.indexados}
-          tint="var(--mid)"
-        />
+      <div className="perf-grid" style={{ marginTop: 22, gridTemplateColumns: "repeat(4,1fr)" }}>
+        <StatCard icon="docs" label="Documentos" value={d0.total} />
+        <StatCard icon="check" label="Indexados" value={d0.indexados} tint="var(--high)" />
+        <StatCard icon="layers" label="Trechos vetorizados" value={d0.chunks} tint="var(--brand-600)" />
+        <StatCard icon="clock" label="Pendentes" value={d0.total - d0.indexados} tint="var(--mid)" />
       </div>
 
-      {/* Feedback de indexação */}
+      {/* Feedback de indexação / upload */}
       {resultado && (
         <div
           className="card"
@@ -524,8 +455,17 @@ function DocumentosView({ temas }) {
           <div>
             {resultado.ok ? (
               <>
-                <b>Indexação concluída!</b> {resultado.chunks} chunks de{" "}
-                {resultado.arquivos} arquivo(s) armazenados.
+                <b>
+                  {resultado.arquivo_salvo
+                    ? `Arquivo "${resultado.arquivo_salvo}" enviado!`
+                    : "Indexação concluída!"}
+                </b>{" "}
+                {resultado.chunks > 0
+                  ? `${resultado.chunks} chunks de ${resultado.arquivos} arquivo(s) processados.`
+                  : "Nenhum arquivo novo para processar."}
+                {resultado.pulados > 0 && (
+                  <span className="muted"> {resultado.pulados} arquivo(s) já indexado(s) — pulados.</span>
+                )}
                 {resultado.falhas > 0 && (
                   <span style={{ color: "var(--low)", marginLeft: 8 }}>
                     {resultado.falhas} arquivo(s) com erro:{" "}
@@ -535,8 +475,7 @@ function DocumentosView({ temas }) {
               </>
             ) : (
               <>
-                <b>Erro na indexação.</b>{" "}
-                {resultado.erro || "Verifique o servidor."}
+                <b>Erro.</b> {resultado.erro || "Verifique o servidor."}
               </>
             )}
           </div>
@@ -554,136 +493,138 @@ function DocumentosView({ temas }) {
       <div className="doc-toolbar" style={{ marginTop: 24 }}>
         <div className="searchbox">
           <Icon name="search" size={16} style={{ color: "var(--ink-3)" }} />
-          <input
-            placeholder="Buscar arquivo…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+          <input placeholder="Buscar arquivo…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="seg">
-          {[
-            ["todos", "Todos"],
-            ["indexados", "Indexados"],
-            ["pendentes", "Pendentes"],
-          ].map(([k, l]) => (
-            <button
-              key={k}
-              className={filtro === k ? "on" : ""}
-              onClick={() => setFiltro(k)}
-            >
+          {[["todos", "Todos"], ["indexados", "Indexados"], ["pendentes", "Pendentes"]].map(([k, l]) => (
+            <button key={k} className={filtro === k ? "on" : ""} onClick={() => setFiltro(k)}>
               {l}
             </button>
           ))}
         </div>
-        <button
-          className="btn btn-accent"
-          style={{ marginLeft: "auto", padding: "9px 16px", fontSize: 14 }}
-          onClick={indexar}
-          disabled={indexando}
-        >
-          <Icon name={indexando ? "refresh" : "layers"} size={16} />
-          {indexando ? "Processando…" : "Processar Documentos"}
-        </button>
+
+        {/* Upload: matéria de destino + arquivo (FEAT-002) */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={uploadMateria}
+            onChange={(e) => setUploadMateria(e.target.value)}
+            title="Matéria de destino do upload"
+            style={{
+              padding: "9px 11px",
+              borderRadius: 11,
+              border: "1px solid var(--line-2)",
+              background: "var(--surface)",
+              fontSize: 13,
+              color: "var(--ink-2)",
+              fontFamily: "inherit",
+            }}
+          >
+            <option value="">Matéria: Geral</option>
+            {temasList
+              .filter((t) => t.id !== "geral")
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  Matéria: {t.nome}
+                </option>
+              ))}
+          </select>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.md,.txt"
+            style={{ display: "none" }}
+            onChange={enviarArquivo}
+          />
+          <button
+            className="btn btn-ghost"
+            onClick={() => fileRef.current && fileRef.current.click()}
+            disabled={enviando}
+          >
+            <Icon name="plus" size={16} /> {enviando ? "Enviando…" : "Enviar documento"}
+          </button>
+          <button
+            className="btn btn-accent"
+            style={{ padding: "9px 16px", fontSize: 14 }}
+            onClick={indexar}
+            disabled={indexando}
+          >
+            <Icon name={indexando ? "refresh" : "layers"} size={16} />
+            {indexando ? "Processando…" : "Processar Documentos"}
+          </button>
+        </div>
       </div>
 
       {/* Tabela */}
       <div className="card" style={{ overflow: "hidden" }}>
         <div className="doc-row head">
           <span>Arquivo</span>
-          <span>Tema</span>
+          <span>Matéria</span>
           <span>Trechos</span>
           <span>Status</span>
           <span />
         </div>
-        {rows.map((d) => {
-          const t = byId(d.tema);
-          return (
-            <div className="doc-row" key={d.id}>
-              <div className="doc-file">
-                <div
-                  className="doc-fic"
-                  style={{ background: tipoCor[d.tipo] || "var(--ink-3)" }}
-                >
-                  {(d.tipo || "").toUpperCase()}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div className="doc-fname">{d.nome}</div>
-                  <div className="doc-fmeta">
-                    {d.tamanho} · adicionado em {d.data}
-                  </div>
-                </div>
-              </div>
-              <div>
-                <span
-                  className="chip"
-                  style={{
-                    borderColor: t.cor + "44",
-                    color: t.cor,
-                    background: t.cor + "12",
-                  }}
-                >
-                  {t.nome}
-                </span>
-              </div>
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontVariantNumeric: "tabular-nums",
-                  color: d.chunks ? "var(--ink)" : "var(--ink-3)",
-                }}
-              >
-                {d.chunks || "—"}{" "}
-                <span
-                  className="muted"
-                  style={{ fontWeight: 500, fontSize: 12 }}
-                >
-                  chunks
-                </span>
-              </div>
-              <div>
-                {d.indexado === true ? (
-                  <span className="tag tag-high">
-                    <Icon
-                      name="check"
-                      size={11}
-                      style={{ verticalAlign: "-1px" }}
-                    />{" "}
-                    Indexado
-                  </span>
-                ) : d.indexado === "processando" ? (
-                  <span className="tag tag-mid">
-                    <Icon
-                      name="refresh"
-                      size={11}
-                      style={{ verticalAlign: "-1px" }}
-                    />{" "}
-                    Processando
-                  </span>
-                ) : (
-                  <span className="tag tag-muted">
-                    <Icon
-                      name="clock"
-                      size={11}
-                      style={{ verticalAlign: "-1px" }}
-                    />{" "}
-                    Não indexado
-                  </span>
-                )}
-              </div>
-              <button className="icon-btn" style={{ width: 32, height: 32 }}>
-                <Icon name="dot3" size={16} />
-              </button>
-            </div>
-          );
-        })}
-        {rows.length === 0 && (
-          <div
-            style={{ padding: 40, textAlign: "center", color: "var(--ink-3)" }}
-          >
-            {dados.total === 0
-              ? "Nenhum arquivo encontrado na pasta docs/."
-              : "Nenhum arquivo corresponde ao filtro."}
+        {dados === null ? (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--ink-3)" }}>
+            Carregando documentos…
           </div>
+        ) : (
+          <>
+            {rows.map((d) => {
+              const t = byId(d.tema);
+              return (
+                <div className="doc-row" key={d.id}>
+                  <div className="doc-file">
+                    <div className="doc-fic" style={{ background: tipoCor[d.tipo] || "var(--ink-3)" }}>
+                      {(d.tipo || "").toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="doc-fname">{d.nome}</div>
+                      <div className="doc-fmeta">{d.tamanho} · adicionado em {d.data}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <span
+                      className="chip"
+                      style={{ borderColor: t.cor + "44", color: t.cor, background: t.cor + "12" }}
+                    >
+                      {t.nome}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontVariantNumeric: "tabular-nums",
+                      color: d.chunks ? "var(--ink)" : "var(--ink-3)",
+                    }}
+                  >
+                    {d.chunks || "—"}{" "}
+                    <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}>chunks</span>
+                  </div>
+                  <div>
+                    {d.indexado === true ? (
+                      <span className="tag tag-high">
+                        <Icon name="check" size={11} style={{ verticalAlign: "-1px" }} /> Indexado
+                      </span>
+                    ) : (
+                      <span className="tag tag-muted">
+                        <Icon name="clock" size={11} style={{ verticalAlign: "-1px" }} /> Não indexado
+                      </span>
+                    )}
+                  </div>
+                  <button className="icon-btn" style={{ width: 32, height: 32 }}>
+                    <Icon name="dot3" size={16} />
+                  </button>
+                </div>
+              );
+            })}
+            {rows.length === 0 && (
+              <div style={{ padding: 40, textAlign: "center", color: "var(--ink-3)" }}>
+                {d0.total === 0
+                  ? "Nenhum arquivo encontrado na pasta docs/."
+                  : "Nenhum arquivo corresponde ao filtro."}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -703,14 +644,14 @@ function DesempenhoView() {
 
   if (!stats) {
     return (
-      <div className="page rise" style={{ color: "var(--ink-3)", textAlign: "center" }}>
-        Carregando métricas…
+      <div className="page rise">
+        <Loading label="Carregando métricas…" />
       </div>
     );
   }
 
   const m = stats;
-  const maxSerie = Math.max(...(m.serie || [0.001]));
+  const maxSerie = Math.max(...(m.serie || [0.001]), 0.001);
   const totalDist = (m.dist || []).reduce((s, d) => s + d.v, 0);
 
   return (
@@ -723,30 +664,10 @@ function DesempenhoView() {
       </p>
 
       <div className="perf-grid" style={{ marginTop: 22 }}>
-        <StatCard
-          icon="chat"
-          label="Perguntas feitas"
-          value={m.perguntas}
-          delta={m.perguntasDelta}
-        />
-        <StatCard
-          icon="check"
-          label="Respondidas"
-          value={m.respondidas}
-          tint="var(--high)"
-        />
-        <StatCard
-          icon="shield"
-          label="Recusadas (fora do escopo)"
-          value={m.recusadas}
-          tint="var(--low)"
-        />
-        <StatCard
-          icon="clock"
-          label="Tempo médio"
-          value={m.tempoMedio}
-          tint="var(--brand-600)"
-        />
+        <StatCard icon="chat" label="Perguntas feitas" value={m.perguntas} delta={m.perguntasDelta} />
+        <StatCard icon="check" label="Respondidas" value={m.respondidas} tint="var(--high)" />
+        <StatCard icon="shield" label="Recusadas (fora do escopo)" value={m.recusadas} tint="var(--low)" />
+        <StatCard icon="clock" label="Tempo médio" value={m.tempoMedio} tint="var(--brand-600)" />
       </div>
 
       <div className="g2" style={{ marginTop: 24 }}>
@@ -765,7 +686,7 @@ function DesempenhoView() {
                     <div
                       className="b"
                       style={{
-                        height: maxSerie > 0 ? (v / maxSerie) * 100 + "%" : "0%",
+                        height: (v / maxSerie) * 100 + "%",
                         background: confColor(v),
                         minHeight: v > 0 ? 4 : 0,
                       }}
@@ -816,12 +737,8 @@ function DesempenhoView() {
                 {(m.dist || []).map((d, i) => (
                   <div className="dist-row" key={i}>
                     <div className="d-label">
-                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>
-                        {d.faixa}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                        {d.sub}
-                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>{d.faixa}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{d.sub}</div>
                     </div>
                     <div className="d-bar">
                       <span
@@ -844,17 +761,18 @@ function DesempenhoView() {
 }
 
 /* ---------------- HISTÓRICO ---------------- */
-function HistoricoView({ goto, temas }) {
-  const [conversas, setConversas] = React.useState([]);
+function HistoricoView({ goto, temas, openConversation }) {
+  const [conversas, setConversas] = React.useState(null);
 
+  const temasList = temas || [];
   const byId = (id) =>
-    temas.find((t) => t.id === id) || { nome: id || "Geral", cor: "#888", id };
+    temasList.find((t) => t.id === id) || { nome: id || "Geral", cor: "#888", id };
 
   React.useEffect(() => {
     fetch("/api/historico")
       .then((r) => r.json())
       .then((d) => setConversas(d.conversas || []))
-      .catch(() => {});
+      .catch(() => setConversas([]));
   }, []);
 
   return (
@@ -862,19 +780,18 @@ function HistoricoView({ goto, temas }) {
       <div className="h-eyebrow">Suas conversas</div>
       <h1 className="h1">Histórico</h1>
       <p className="sub">
-        Retome qualquer conversa anterior. Cada uma guarda as fontes que foram
-        citadas.
+        Retome qualquer conversa anterior. Cada uma guarda todas as perguntas,
+        respostas e fontes citadas.
       </p>
 
-      {conversas.length === 0 ? (
+      {conversas === null ? (
+        <div style={{ marginTop: 22 }}>
+          <Loading label="Carregando histórico…" />
+        </div>
+      ) : conversas.length === 0 ? (
         <div
           className="card"
-          style={{
-            marginTop: 22,
-            padding: 48,
-            textAlign: "center",
-            color: "var(--ink-3)",
-          }}
+          style={{ marginTop: 22, padding: 48, textAlign: "center", color: "var(--ink-3)" }}
         >
           <Icon
             name="history"
@@ -894,18 +811,15 @@ function HistoricoView({ goto, temas }) {
       ) : (
         <div className="card" style={{ marginTop: 22, padding: "4px 18px" }}>
           {conversas.map((c) => {
-            const t = byId(c.tema);
+            const t = byId(c.materia || c.tema);
             return (
               <div
                 className="list-row"
                 key={c.id}
                 style={{ cursor: "pointer" }}
-                onClick={() => goto("chat")}
+                onClick={() => openConversation(c.id)}
               >
-                <div
-                  className="list-ic"
-                  style={{ background: t.cor + "1A", color: t.cor }}
-                >
+                <div className="list-ic" style={{ background: t.cor + "1A", color: t.cor }}>
                   <Icon name="chat" size={18} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -920,13 +834,7 @@ function HistoricoView({ goto, temas }) {
                   >
                     {c.titulo}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      color: "var(--ink-3)",
-                      marginTop: 1,
-                    }}
-                  >
+                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", marginTop: 1 }}>
                     <span
                       className="chip"
                       style={{
@@ -943,11 +851,7 @@ function HistoricoView({ goto, temas }) {
                   </div>
                 </div>
                 <ConfidenceMeter value={c.confianca || 0} compact />
-                <Icon
-                  name="chevR"
-                  size={18}
-                  style={{ color: "var(--ink-3)" }}
-                />
+                <Icon name="chevR" size={18} style={{ color: "var(--ink-3)" }} />
               </div>
             );
           })}
@@ -963,4 +867,5 @@ Object.assign(window, {
   DocumentosView,
   DesempenhoView,
   HistoricoView,
+  Loading,
 });

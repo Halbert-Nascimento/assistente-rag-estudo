@@ -21,13 +21,15 @@ const CRUMB = {
 };
 
 function App() {
-  const [view,   setView]   = React.useState("home");
-  const [seed,   setSeed]   = React.useState(null);
-  const [nonce,  setNonce]  = React.useState(0);
-  const [status, setStatus] = React.useState({ ollama: false, pronto: false, modelo: "llama3.1", docs_indexados: 0 });
-  const [temas,  setTemas]  = React.useState([]);
+  const [view,     setView]     = React.useState("home");
+  const [seed,     setSeed]     = React.useState(null);
+  const [nonce,    setNonce]    = React.useState(0);
+  const [status,   setStatus]   = React.useState({ ollama: false, pronto: false, modelo: "llama3.1", docs_indexados: 0 });
+  // temas: null = ainda carregando (BUG-001); [] = realmente vazio
+  const [temas,    setTemas]    = React.useState(null);
+  const [resumeId, setResumeId] = React.useState(null);   // conversa a retomar (BUG-002)
+  const [materia,  setMateria]  = React.useState(null);   // escopo do chat (FEAT-003)
 
-  /* Busca status e temas na montagem e a cada 30 s */
   function refreshStatus() {
     fetch("/api/status")
       .then((r) => r.json())
@@ -39,7 +41,7 @@ function App() {
     fetch("/api/documentos")
       .then((r) => r.json())
       .then((d) => setTemas(d.temas || []))
-      .catch(() => {});
+      .catch(() => setTemas([]));
   }
 
   React.useEffect(() => {
@@ -49,14 +51,37 @@ function App() {
     return () => clearInterval(id);
   }, []);
 
-  /* Refresh de temas após indexação (DocumentosView chama goto("docs") de volta) */
   React.useEffect(() => {
     if (view === "home" || view === "temas") refreshTemas();
   }, [view]);
 
-  function goto(v)  { setView(v); }
-  function ask(q)   { setSeed(q); setNonce((n) => n + 1); setView("chat"); }
-  function newChat(){ setSeed(null); setNonce((n) => n + 1); setView("chat"); }
+  function goto(v) { setView(v); }
+
+  /* Pergunta vinda da Home (escopo geral) */
+  function ask(q) {
+    setSeed(q); setResumeId(null); setMateria(null);
+    setNonce((n) => n + 1); setView("chat");
+  }
+
+  /* Chat limpo */
+  function newChat() {
+    setSeed(null); setResumeId(null); setMateria(null);
+    setNonce((n) => n + 1); setView("chat");
+  }
+
+  /* Retomar conversa do histórico (BUG-002) */
+  function openConversation(id) {
+    setSeed(null); setResumeId(id); setMateria(null);
+    setNonce((n) => n + 1); setView("chat");
+  }
+
+  /* Chat limpo com escopo de matéria (BUG-005 + FEAT-003) */
+  function openMateria(t) {
+    setSeed(null); setResumeId(null); setMateria(t);
+    setNonce((n) => n + 1); setView("chat");
+  }
+
+  const temasList = temas || [];
 
   const statusColor  = status.pronto ? "var(--high)" : status.ollama ? "var(--mid)" : "var(--low)";
   const statusBg     = status.pronto ? "var(--high-100)" : status.ollama ? "var(--mid-100)" : "var(--low-100)";
@@ -88,7 +113,7 @@ function App() {
           <button
             key={n.id}
             className={"nav-item" + (view === n.id ? " active" : "")}
-            onClick={() => goto(n.id)}
+            onClick={() => (n.id === "chat" ? newChat() : goto(n.id))}
           >
             <Icon name={n.icon} size={19} /> {n.label}
             {n.badge && <span className="nav-badge">{n.badge}</span>}
@@ -97,7 +122,7 @@ function App() {
 
         <div className="nav-label">Conteúdo</div>
         {NAV.slice(2).map((n) => {
-          const badge = n.id === "docs" && temas.length > 0 ? String(temas.length) : n.badge;
+          const badge = n.id === "temas" && temasList.length > 0 ? String(temasList.length) : n.badge;
           return (
             <button
               key={n.id}
@@ -118,8 +143,10 @@ function App() {
           </div>
           <div className="sc-row">
             <span className="sc-dot" style={{ background: status.pronto ? "var(--high)" : "var(--mid)" }} />
-            {temas.length > 0
-              ? `${temas.length} documento(s) · ${status.docs_indexados} trechos`
+            {temas === null
+              ? "Carregando documentos…"
+              : temasList.length > 0
+              ? `${temasList.reduce((s, t) => s + t.docs, 0)} documento(s) · ${status.docs_indexados} trechos`
               : "Nenhum documento indexado"}
           </div>
           <div className="sc-meta">
@@ -155,6 +182,12 @@ function App() {
                 {i < arr.length - 1 && <Icon name="chevR" size={13} />}
               </React.Fragment>
             ))}
+            {view === "chat" && materia && (
+              <>
+                <Icon name="chevR" size={13} />
+                <b style={{ color: materia.cor }}>{materia.nome}</b>
+              </>
+            )}
           </div>
           <div className="topbar-spacer" />
 
@@ -189,12 +222,12 @@ function App() {
           className="main-body"
           style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
         >
-          {view === "home"       && <div className="scroll"><HomeView       goto={goto} ask={ask} temas={temas} /></div>}
-          {view === "chat"       && <ChatView key={nonce} goto={goto} seed={seed} />}
-          {view === "temas"      && <div className="scroll"><TemasView      goto={goto} ask={ask} temas={temas} /></div>}
-          {view === "docs"       && <div className="scroll"><DocumentosView temas={temas} /></div>}
+          {view === "home"       && <div className="scroll"><HomeView       goto={goto} ask={ask} temas={temas} openConversation={openConversation} /></div>}
+          {view === "chat"       && <ChatView key={nonce} seed={seed} resumeId={resumeId} materia={materia} />}
+          {view === "temas"      && <div className="scroll"><TemasView      goto={goto} temas={temas} openMateria={openMateria} /></div>}
+          {view === "docs"       && <div className="scroll"><DocumentosView temas={temasList} onIndexed={refreshTemas} /></div>}
           {view === "desempenho" && <div className="scroll"><DesempenhoView /></div>}
-          {view === "historico"  && <div className="scroll"><HistoricoView  goto={goto} temas={temas} /></div>}
+          {view === "historico"  && <div className="scroll"><HistoricoView  goto={goto} temas={temasList} openConversation={openConversation} /></div>}
         </div>
       </div>
     </div>

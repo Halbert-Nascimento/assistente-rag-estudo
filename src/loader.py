@@ -164,9 +164,14 @@ class DocumentLoader:
         - Outros formatos: divisao por caracteres com sobreposicao.
         """
         # ID unico por arquivo: usa o caminho relativo para evitar colisoes
-        rel_path = str(file_path.relative_to(self.docs_dir))
+        rel = file_path.relative_to(self.docs_dir)
+        rel_path = str(rel)
         path_hash = hashlib.md5(rel_path.encode()).hexdigest()[:8]
         file_key = f"{file_path.stem}_{path_hash}"
+
+        # Materia: primeira subpasta de docs/ (docs/<materia>/arquivo.md).
+        # Arquivos na raiz de docs/ pertencem a materia 'geral'.
+        materia = rel.parts[0] if len(rel.parts) > 1 else 'geral'
 
         text = text.strip()
 
@@ -215,6 +220,7 @@ class DocumentLoader:
                 'content': piece,
                 'source': file_path.name,
                 'source_path': rel_path,
+                'materia': materia,
                 'chunk_id': f"{file_key}_{idx:04d}",
                 'timestamp': datetime.now().isoformat(),
                 'char_count': len(piece),

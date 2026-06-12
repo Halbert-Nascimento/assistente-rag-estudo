@@ -1,4 +1,9 @@
 # Roadmap do Projeto: Assistente RAG (IA Generativa)
+
+> **Antes de iniciar qualquer trabalho:** consulte o `BACKLOG.md` (bugs e melhorias
+> pendentes, com causa raiz e correcao proposta) e a fase atual neste arquivo.
+> Ao encontrar novos problemas ou ideias de melhoria, **registre-os no `BACKLOG.md`
+> antes de corrigir** — ele e o registro vivo do andamento do projeto.
     
 ## Fase 1: Setup Isolado (✅ Concluído)
 - [x] Criação da estrutura de pastas (`src`, `eval`, `docs`).
@@ -153,3 +158,31 @@ docker-compose up -d --build             # teste em container
 | Status ChromaDB + Ollama em tempo real | badge no topbar via `/api/status` |
 | Recusa deterministica (sem LLM) | logica permanece em `src/chain.py` |
 | Limpar conversa | botao "Nova conversa" em `app.jsx` |
+
+## Fase 9: Correcoes e Melhorias da Interface React (✅ Concluído em 12/06/2026 — branch `nova-interface`)
+
+O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentados e
+**resolvidos** em **`BACKLOG.md`** (BUG-001 a BUG-005, FEAT-001 a FEAT-005). Resumo:
+- [x] **BUG-001 Loading state:** warmup do embedder em thread no startup; `temas=null`
+  = carregando (views mostram "Carregando documentos…" em vez de "Nenhum documento").
+- [x] **BUG-002 Retomar conversa:** clicar numa conversa (home/historico) reabre as
+  mensagens via `GET /api/historico/{id}` e continua no mesmo `session_id`.
+- [x] **BUG-003 Formatacao:** prompt nao pede mais citacao inline (regra 3 trocada);
+  regex de limpeza no api.py; markdown leve no chat; fontes em secao retratil fechada.
+  Revalidado: `eval.py --full` = **8/8 + 2/2** apos a mudanca do prompt.
+- [x] **BUG-004 Scroll:** `.chat-wrap{flex:1;min-height:0}` + rolagem do container
+  interno (`scrollTop`) em vez de `scrollIntoView` — sidebar nao some mais.
+- [x] **BUG-005 + FEAT-003 Escopo por materia:** clique no tema abre chat limpo com
+  filtro `where={"materia": ...}` no ChromaDB (so fontes daquela materia); aba
+  Assistente busca em tudo. Chip "Escopo: <materia>" no composer.
+- [x] **FEAT-001 Materias por subpasta:** `docs/<materia>/arquivo.md`; raiz → "geral".
+  Campo `materia` no loader e nos metadatas; `/api/documentos` agrupa por subpasta.
+  Banco reindexado (62 chunks, limiar 0.68 inalterado).
+- [x] **FEAT-004 Indexacao incremental:** manifest `data/index_manifest.json` (md5 por
+  arquivo); segunda indexacao pula tudo (`pulados: 4`, instantanea); `?force=true` disponivel.
+- [x] **FEAT-002 Upload:** `POST /api/upload` (multipart, valida extensao, salva em
+  `docs/<materia>/`, indexa incrementalmente). Botao + seletor de materia na DocumentosView.
+  Requer `python-multipart` (adicionado ao requirements).
+- [x] **FEAT-005 Sugestoes dinamicas:** 3 sugestoes geradas dos titulos dos documentos
+  mais recentes.
+- [x] Testes 20/20 | eval 8/8 + 2/2 | upload e2e testado e limpo.
