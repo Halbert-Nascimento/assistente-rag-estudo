@@ -9,10 +9,15 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 from datetime import datetime
 
+# O pacote moderno e 'pypdf' (modulo pypdf); 'PyPDF2' e o nome legado.
+# Importar so PyPDF2 fazia TODO PDF falhar com pypdf instalado (BUG-006).
 try:
-    import PyPDF2
+    from pypdf import PdfReader
 except ImportError:
-    PyPDF2 = None
+    try:
+        from PyPDF2 import PdfReader
+    except ImportError:
+        PdfReader = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -112,7 +117,7 @@ class DocumentLoader:
 
     def _load_pdf(self, file_path: Path) -> str:
         """Extrai texto de PDF com tratamento de erros por pagina."""
-        if PyPDF2 is None:
+        if PdfReader is None:
             raise ImportError(
                 "pypdf nao esta instalado. Execute: pip install pypdf"
             )
@@ -120,7 +125,7 @@ class DocumentLoader:
         texts: List[str] = []
         with open(file_path, 'rb') as f:
             try:
-                reader = PyPDF2.PdfReader(f)
+                reader = PdfReader(f)
             except Exception as e:
                 raise ValueError(f"Arquivo PDF invalido ou corrompido: {e}")
 
@@ -164,9 +169,14 @@ class DocumentLoader:
         - Outros formatos: divisao por caracteres com sobreposicao.
         """
         # ID unico por arquivo: usa o caminho relativo para evitar colisoes
-        rel_path = str(file_path.relative_to(self.docs_dir))
+        rel = file_path.relative_to(self.docs_dir)
+        rel_path = str(rel)
         path_hash = hashlib.md5(rel_path.encode()).hexdigest()[:8]
         file_key = f"{file_path.stem}_{path_hash}"
+
+        # Materia: primeira subpasta de docs/ (docs/<materia>/arquivo.md).
+        # Arquivos na raiz de docs/ pertencem a materia 'geral'.
+        materia = rel.parts[0] if len(rel.parts) > 1 else 'geral'
 
         text = text.strip()
 
@@ -215,6 +225,7 @@ class DocumentLoader:
                 'content': piece,
                 'source': file_path.name,
                 'source_path': rel_path,
+                'materia': materia,
                 'chunk_id': f"{file_key}_{idx:04d}",
                 'timestamp': datetime.now().isoformat(),
                 'char_count': len(piece),

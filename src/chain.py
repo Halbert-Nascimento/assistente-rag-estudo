@@ -35,7 +35,8 @@ REGRAS OBRIGATORIAS:
 1. Responda APENAS com base nos DOCUMENTOS. Nao invente, nao suponha.
 2. Se a resposta nao estiver nos documentos, diga exatamente:
    "Nao encontrei informacao sobre isso nos documentos disponibilizados."
-3. Cite sempre a fonte entre parenteses, ex: (Fonte: aula-06.md)
+3. NAO cite o nome dos arquivos na resposta (as fontes sao exibidas
+   separadamente pela interface).
 4. Responda em portugues do Brasil.
 5. Seja claro e objetivo.
 
@@ -100,13 +101,17 @@ class RAGChain:
 
         logger.info("RAGChain pronta")
 
-    def _retrieve(self, question: str) -> List[Dict]:
+    def _retrieve(self, question: str, materia: Optional[str] = None) -> List[Dict]:
         """
         Busca chunks no ChromaDB e filtra pelo limiar de similaridade.
+        Se materia for informada, restringe a busca aos chunks daquela materia.
         Retorna lista vazia (nao lanca excecao) em caso de falha.
         """
         try:
-            results = self.embedder.search(question, n_results=self.n_results)
+            where = {'materia': materia} if materia else None
+            results = self.embedder.search(
+                question, n_results=self.n_results, where=where
+            )
         except Exception as e:
             logger.error(f"Erro na recuperacao de contexto: {e}")
             return []
@@ -134,9 +139,13 @@ class RAGChain:
             )
         return "\n\n---\n\n".join(parts)
 
-    def ask(self, question: str) -> Dict:
+    def ask(self, question: str, materia: Optional[str] = None) -> Dict:
         """
         Responde uma pergunta usando RAG.
+
+        Args:
+            materia: se informada, restringe a busca de contexto aos
+                     documentos daquela materia (chat com escopo).
 
         Returns:
             Dict com 'answer', 'sources', 'context_chunks'
@@ -150,10 +159,11 @@ class RAGChain:
             }
 
         question = question.strip()
-        logger.info(f"Pergunta recebida: '{question}'")
+        logger.info(f"Pergunta recebida: '{question}'"
+                    + (f" [escopo: {materia}]" if materia else ""))
 
         # Busca unica: os mesmos chunks alimentam o LLM e o campo 'sources'
-        results = self._retrieve(question)
+        results = self._retrieve(question, materia=materia)
 
         if not results:
             # Recusa deterministica: nao gasta chamada de LLM

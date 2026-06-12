@@ -16,19 +16,20 @@ services:
               capabilities: [gpu]
     restart: always
 
-  # STREAMLIT - Interface e App RAG
+  # FASTAPI - Interface React + API RAG
   app:
     build: .
-    container_name: rag-streamlit
+    container_name: rag-app
     ports:
-      - "8501:8501"
+      - "8000:8000"
     volumes:
-      # Monta apenas o que muda em runtime (docs e banco vetorial),
-      # preservando o codigo instalado na imagem
+      # Monta apenas o que muda em runtime (docs, banco vetorial e dados persistidos)
       - ./docs:/app/docs
       - ./chroma_db:/app/chroma_db
+      - ./data:/app/data
+      # Cache do modelo de embeddings (~470MB) - evita re-download ao recriar o container
+      - hf_cache:/root/.cache/huggingface
     environment:
-      # Nomes alinhados com o que app.py le via os.getenv()
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3.1
       - DOCS_DIR=docs
@@ -38,3 +39,4 @@ services:
 
 volumes:
   ollama:   # reusa o volume criado pelo container standalone (modelos ja baixados)
+  hf_cache: # modelo de embeddings persistido entre recriacoes do container

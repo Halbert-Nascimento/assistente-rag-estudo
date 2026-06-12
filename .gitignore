@@ -6,3 +6,7 @@ chroma_db/
 .env
 docs/
 diag_out.txt
+
+data/
+
+docs/*

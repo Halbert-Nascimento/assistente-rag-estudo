@@ -1,4 +1,9 @@
 # Roadmap do Projeto: Assistente RAG (IA Generativa)
+
+> **Antes de iniciar qualquer trabalho:** consulte o `BACKLOG.md` (bugs e melhorias
+> pendentes, com causa raiz e correcao proposta) e a fase atual neste arquivo.
+> Ao encontrar novos problemas ou ideias de melhoria, **registre-os no `BACKLOG.md`
+> antes de corrigir** — ele e o registro vivo do andamento do projeto.
     
 ## Fase 1: Setup Isolado (✅ Concluído)
 - [x] Criação da estrutura de pastas (`src`, `eval`, `docs`).
@@ -72,3 +77,145 @@ Primeira rodada do `eval.py --full` (com Ollama + GPU) revelou 6/8 e 3 bugs no r
 - [x] **Limiar 0.68 revalidado** apos recontextualizacao: in-scope 0.727–0.875, fora 0.539–0.630.
 - [x] **Resultado final (`eval.py --full`): 8/8 in-scope + 2/2 recusas (100%).** Latencia media 2.6 s, recusa em ~30 ms. Banco com 62 chunks. Testes: 20/20 (2 novos de regressao).
 - [x] **docker-compose com GPU NVIDIA** (`deploy.resources`) e volume `ollama` compativel com o container standalone do usuario. README com 3 opcoes de execucao e instrucoes de uso da interface.
+
+## Fase 8: Migracao para Interface React (🔄 Planejada — branch `nova-interface`)
+
+Substituicao da interface Streamlit (`app.py`) pela interface React prototipatada em `interface/`.
+Executar na branch `nova-interface` (nunca no main ate estar completa).
+
+### Etapa 0 — Documentar plano no CLAUDE.md (este item) ✅
+### Etapa 1 — Criar branch git
+```
+git checkout -b nova-interface
+```
+
+### Etapa 2 — Reorganizar arquivos de interface
+- Renomear `interface/` → `frontend/`
+- Remover `frontend/data.js` (dados mock, substituido por API real)
+- Adicionar `data/` ao `.gitignore` (pasta de persistencia em runtime)
+
+### Etapa 3 — Criar `api.py` (FastAPI — substitui Streamlit como servidor)
+Endpoints a implementar (backend usa `src/loader.py`, `src/embedder.py`, `src/chain.py` sem modificacao):
+- `GET  /`                  → serve `frontend/index.html`
+- `GET  /frontend/{file}`   → arquivos estaticos CSS/JS
+- `GET  /api/status`        → `{ chromadb, ollama, docs_indexados, modelo, pronto }`
+- `POST /api/indexar`       → `{ ok, chunks, arquivos, falhas, arquivos_com_erro }`
+- `POST /api/chat`          → `{ resposta, fontes:[{doc,sim}], sim, recusou }`
+- `GET  /api/documentos`    → `{ total, indexados, chunks, arquivos:[{nome,tipo,status,chunks}] }`
+- `GET  /api/stats`         → `{ total_perguntas, confianca_media, historico_7dias, distribuicao }`
+- `GET  /api/historico`     → lista de conversas salvas
+- `GET  /api/historico/{id}`→ mensagens de uma conversa
+Persistencia simples: `data/stats.json` e `data/historico.json` (atualizados a cada `/api/chat`).
+
+### Etapa 4 — Criar `frontend/chat.jsx` (componente faltante)
+ChatView com: input + lista de mensagens + SourceCard por resposta + ConfidenceMeter.
+Integra via `fetch('/api/chat', {method:'POST', body: JSON.stringify({pergunta})})`.
+Recebe props `seed` (pergunta inicial da HomeView) e `onNewChat`.
+
+### Etapa 5 — Atualizar `frontend/views.jsx`
+Substituir `DATA.*` por `fetch('/api/...')` com `useEffect` em cada view:
+- `HomeView`       → `GET /api/stats` + `GET /api/historico`
+- `DocumentosView` → `GET /api/documentos` + botao `POST /api/indexar` com feedback por arquivo
+- `DesempenhoView` → `GET /api/stats`
+- `HistoricoView`  → `GET /api/historico`
+- `TemasView`      → derivar temas de `/api/documentos` (agrupar por prefixo do nome do arquivo)
+
+### Etapa 6 — Atualizar `frontend/app.jsx`
+- Adicionar `useEffect` para `GET /api/status` ao montar (atualiza badge do topbar)
+- Importar `ChatView` de `chat.jsx` (ja referenciado, faltava o arquivo)
+- Remover import de `data.js`
+
+### Etapa 7 — Atualizar `frontend/index.html`
+- Remover `<script src="data.js">`
+- Adicionar `<script src="chat.jsx" type="text/babel">`
+- Manter CDN React + Babel (sem bundler)
+
+### Etapa 8 — Atualizar infra
+- `requirements.txt`: adicionar `fastapi` e `uvicorn[standard]`
+- `Dockerfile`: trocar `streamlit run app.py --server.port=8501` por `uvicorn api:app --host 0.0.0.0 --port 8000`
+- `docker-compose.yml`: porta `8000:8000`, container renomeado `rag-app`
+
+### Verificacao final
+```bash
+uvicorn api:app --reload --port 8000     # dev local
+python tests/run_tests.py                # backend Python intacto (20/20)
+# Acessar http://localhost:8000 e testar: status, indexar, chat, historico
+docker-compose up -d --build             # teste em container
+```
+
+### Features adicionadas vs Streamlit atual
+| Feature nova | Origem |
+|---|---|
+| Historico persistente entre sessoes | `data/historico.json` |
+| Graficos de desempenho por dia | `data/stats.json` |
+| Visualizacao por temas/aulas | derivado dos nomes dos arquivos |
+| Dashboard home com sugestoes | HomeView + dados de stats |
+
+### Features do Streamlit garantidas na nova interface
+| Feature | Como preservada |
+|---|---|
+| Erros por arquivo na indexacao | coluna de status em DocumentosView |
+| Status ChromaDB + Ollama em tempo real | badge no topbar via `/api/status` |
+| Recusa deterministica (sem LLM) | logica permanece em `src/chain.py` |
+| Limpar conversa | botao "Nova conversa" em `app.jsx` |
+
+## Fase 9: Correcoes e Melhorias da Interface React (✅ Concluído em 12/06/2026 — branch `nova-interface`)
+
+O uso real da interface (Fase 8) revelou 5 bugs e 5 melhorias, todos documentados e
+**resolvidos** em **`BACKLOG.md`** (BUG-001 a BUG-005, FEAT-001 a FEAT-005). Resumo:
+- [x] **BUG-001 Loading state:** warmup do embedder em thread no startup; `temas=null`
+  = carregando (views mostram "Carregando documentos…" em vez de "Nenhum documento").
+- [x] **BUG-002 Retomar conversa:** clicar numa conversa (home/historico) reabre as
+  mensagens via `GET /api/historico/{id}` e continua no mesmo `session_id`.
+- [x] **BUG-003 Formatacao:** prompt nao pede mais citacao inline (regra 3 trocada);
+  regex de limpeza no api.py; markdown leve no chat; fontes em secao retratil fechada.
+  Revalidado: `eval.py --full` = **8/8 + 2/2** apos a mudanca do prompt.
+- [x] **BUG-004 Scroll:** `.chat-wrap{flex:1;min-height:0}` + rolagem do container
+  interno (`scrollTop`) em vez de `scrollIntoView` — sidebar nao some mais.
+- [x] **BUG-005 + FEAT-003 Escopo por materia:** clique no tema abre chat limpo com
+  filtro `where={"materia": ...}` no ChromaDB (so fontes daquela materia); aba
+  Assistente busca em tudo. Chip "Escopo: <materia>" no composer.
+- [x] **FEAT-001 Materias por subpasta:** `docs/<materia>/arquivo.md`; raiz → "geral".
+  Campo `materia` no loader e nos metadatas; `/api/documentos` agrupa por subpasta.
+  Banco reindexado (62 chunks, limiar 0.68 inalterado).
+- [x] **FEAT-004 Indexacao incremental:** manifest `data/index_manifest.json` (md5 por
+  arquivo); segunda indexacao pula tudo (`pulados: 4`, instantanea); `?force=true` disponivel.
+- [x] **FEAT-002 Upload:** `POST /api/upload` (multipart, valida extensao, salva em
+  `docs/<materia>/`, indexa incrementalmente). Botao + seletor de materia na DocumentosView.
+  Requer `python-multipart` (adicionado ao requirements).
+- [x] **FEAT-005 Sugestoes dinamicas:** 3 sugestoes geradas dos titulos dos documentos
+  mais recentes.
+- [x] Testes 20/20 | eval 8/8 + 2/2 | upload e2e testado e limpo.
+
+**Segunda rodada (mesmo dia), apos teste real do usuario:**
+- [x] **BUG-006 PDFs nunca indexavam:** loader importava `PyPDF2` mas o requirements
+  instala `pypdf` (modulo novo) — import falhava silenciosamente e TODO PDF era
+  rejeitado. Latente desde a Fase 3 (so havia .md na base). Corrigido com
+  `from pypdf import PdfReader` + fallback + teste de regressao (21 testes).
+- [x] **BUG-007 Composer sumia no chat:** o grid `.app` nao definia as linhas —
+  a linha implicita crescia com o conteudo alem dos 100vh e o `overflow:hidden`
+  cortava o composer. `grid-template-rows: minmax(0,1fr)` + `min-height:0` no
+  `.main`. Chat agora rola internamente (inclusive para cima) com input fixo.
+- [x] **BUG-008 Erros sem motivo:** `arquivos_com_erro` agora retorna
+  `{arquivo, erro}`; a UI mostra o motivo por arquivo; upload cujo arquivo
+  falha e removido de docs/ e retorna 422 com o motivo.
+- [x] **FEAT-006 (aberto):** OCR para PDFs imagem-only registrado no BACKLOG
+  (ex: Manual de Formatacao v5.0.pdf — sem texto extraivel, recusa correta).
+- [x] **BUG-009 Upload de 1 arquivo so:** o input nao tinha `multiple` — selecionar
+  2 documentos enviava apenas 1. Agora aceita varios, envia sequencialmente e o
+  card de resultado mostra o status de cada arquivo (chunks ou motivo do erro).
+
+## Fase 10: Preparacao para Entrega (🔄 Em andamento — branch `nova-interface`)
+- [x] **docs/ organizado por materia:** `machine-learning/` (aulas 06-07),
+  `redes-neurais/` (aula 08), `ia-generativa/` (aula 09), `infraestrutura/` (PDF).
+  Banco reconstruido do zero (clear + force) pois mover arquivos muda os chunk_ids —
+  upsert nao remove orfaos. **106 chunks de 6 arquivos.** Validado: busca com escopo
+  retorna apenas fontes da materia; eval recuperacao 8/8 mantido.
+- [x] **README.md reescrito** para a nova interface: FastAPI+React porta 8000,
+  materias por subpasta, upload, indexacao incremental, escopo por materia,
+  benchmark atualizado (21 testes), processo BACKLOG.md documentado.
+- [x] **docker-compose:** volume `hf_cache` para o modelo de embeddings (~470MB)
+  nao re-baixar a cada recriacao do container; `.dockerignore` exclui docs/ e data/.
+- [ ] **Validacao Docker de ponta a ponta** (`docker-compose up -d --build --remove-orphans`):
+  container antigo `rag-streamlit` (8501) removido como orfao; novo `rag-app` (8000).
+- [ ] **Merge `nova-interface` → `main`** apos validacao Docker.
