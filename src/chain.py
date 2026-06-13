@@ -70,7 +70,7 @@ class RAGChain:
         self,
         model: str = 'llama3.1',
         ollama_base_url: str = 'http://localhost:11434',
-        n_results: int = 4,
+        n_results: int = 8,
         min_similarity: float = MIN_SIMILARITY,
         embedder: Optional[DocumentEmbedder] = None,
     ):
@@ -128,16 +128,13 @@ class RAGChain:
         return relevant
 
     def _format_context(self, results: List[Dict]) -> str:
-        """Formata lista de resultados em bloco de contexto para o prompt."""
-        parts: List[str] = []
-        for i, r in enumerate(results, start=1):
-            source = r['metadata'].get('source', 'desconhecido')
-            sim    = r.get('similarity', 0)
-            parts.append(
-                f"[Documento {i} | Fonte: {source} | Similaridade: {sim:.0%}]\n"
-                f"{r['content']}"
-            )
-        return "\n\n---\n\n".join(parts)
+        """Formata os trechos recuperados em um unico bloco de contexto.
+
+        Sem rotulos como "Documento N" ou nome do arquivo: o LLM as vezes
+        copiava esses rotulos para a resposta ("conforme o Documento 3..."),
+        poluindo o texto. As fontes ja sao exibidas separadamente pela interface.
+        """
+        return "\n\n---\n\n".join(r['content'] for r in results)
 
     def ask(self, question: str, materia: Optional[str] = None) -> Dict:
         """
