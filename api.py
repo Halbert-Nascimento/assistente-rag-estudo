@@ -598,6 +598,45 @@ async def historico_detalhe(session_id: str):
     return conv
 
 
+@app.post("/api/reset")
+async def resetar_sistema():
+    """Reset completo: apaga docs, historico, metricas e vetores do ChromaDB."""
+    erros = []
+
+    # 1. Limpa colecao do ChromaDB (apaga e recria vazia)
+    try:
+        get_embedder().clear_collection()
+    except Exception as e:
+        erros.append(f"ChromaDB: {e}")
+
+    # 2. Apaga todos os arquivos dentro de docs/ (mantém a pasta raiz)
+    docs_dir = _docs_dir()
+    try:
+        # sorted + reverse garante que arquivos vêm antes das pastas no loop
+        for item in sorted(docs_dir.rglob("*"), reverse=True):
+            try:
+                if item.is_file():
+                    item.unlink()
+                elif item.is_dir() and item.resolve() != docs_dir.resolve():
+                    item.rmdir()  # só apaga se já estiver vazia (arquivos removidos acima)
+            except Exception as e:
+                erros.append(f"{item.name}: {e}")
+    except Exception as e:
+        erros.append(f"docs/: {e}")
+
+    # 3. Apaga arquivos de dados
+    for f in [HISTORICO_FILE, STATS_FILE, MANIFEST_FILE]:
+        try:
+            if f.exists():
+                f.unlink()
+        except Exception as e:
+            erros.append(f"{f.name}: {e}")
+
+    if erros:
+        return JSONResponse({"ok": False, "erros": erros}, status_code=500)
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------------------
 # Servir frontend estatico
 # ---------------------------------------------------------------------------

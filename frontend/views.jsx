@@ -354,6 +354,9 @@ function DocumentosView({ temas, onIndexed }) {
   const [menuAberto, setMenuAberto] = React.useState(null);   // rel_path do menu aberto
   const [movendo, setMovendo] = React.useState(null);         // {relPath, novaMat}
   const [processando, setProcessando] = React.useState(null); // rel_path em operação
+  const [resetZona, setResetZona] = React.useState(false);    // mostra painel de perigo
+  const [resetDigitado, setResetDigitado] = React.useState(""); // texto de confirmação
+  const [resetando, setResetando] = React.useState(false);    // aguardando resposta da API
   const fileRef = React.useRef(null);
 
   const temasList = (dados && dados.temas) || temas || [];
@@ -438,6 +441,27 @@ function DocumentosView({ temas, onIndexed }) {
       setResultado({ ok: false, erro: "Falha de conexão com o servidor." });
     } finally {
       setProcessando(null);
+    }
+  }
+
+  async function resetarSistema() {
+    setResetando(true);
+    try {
+      const res = await fetch("/api/reset", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        setResultado({ ok: false, erro: (data.erros || []).join(" | ") || "Erro ao resetar o sistema." });
+        setResetZona(false);
+        setResetDigitado("");
+      }
+    } catch {
+      setResultado({ ok: false, erro: "Falha de conexão ao tentar resetar o sistema." });
+      setResetZona(false);
+      setResetDigitado("");
+    } finally {
+      setResetando(false);
     }
   }
 
@@ -767,6 +791,88 @@ function DocumentosView({ temas, onIndexed }) {
               </div>
             )}
           </>
+        )}
+      </div>
+
+      {/* Zona de perigo — Reset do sistema */}
+      <div style={{ marginTop: 40, borderTop: "2px solid #FECDD3", paddingTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <Icon name="alert" size={15} style={{ color: "#DC2626" }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#DC2626", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Zona de perigo
+          </span>
+        </div>
+
+        {!resetZona ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)", flex: 1 }}>
+              Apaga permanentemente todos os documentos, histórico de conversas e métricas de desempenho.{" "}
+              <strong style={{ color: "var(--ink-2)" }}>Esta ação não pode ser desfeita.</strong>
+            </p>
+            <button
+              style={{
+                padding: "9px 18px", fontSize: 13, borderRadius: 10, cursor: "pointer",
+                color: "#DC2626", border: "1px solid #DC2626", background: "transparent",
+                fontWeight: 600, fontFamily: "inherit", flexShrink: 0,
+              }}
+              onClick={() => setResetZona(true)}
+            >
+              Resetar sistema
+            </button>
+          </div>
+        ) : (
+          <div style={{ background: "#FFF1F2", border: "1px solid #FECDD3", borderRadius: 12, padding: "20px 22px" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#991B1B" }}>
+              O que será apagado permanentemente:
+            </p>
+            <ul style={{ margin: "0 0 16px 18px", fontSize: 13, color: "#7F1D1D", lineHeight: 1.8 }}>
+              <li>Todos os arquivos dentro de <code style={{ background: "#FEE2E2", padding: "1px 5px", borderRadius: 4 }}>docs/</code> — removidos do disco</li>
+              <li>Todos os vetores da coleção <code style={{ background: "#FEE2E2", padding: "1px 5px", borderRadius: 4 }}>ChromaDB</code></li>
+              <li>Histórico de conversas — <code style={{ background: "#FEE2E2", padding: "1px 5px", borderRadius: 4 }}>data/historico.json</code></li>
+              <li>Métricas de desempenho — <code style={{ background: "#FEE2E2", padding: "1px 5px", borderRadius: 4 }}>data/stats.json</code></li>
+              <li>Manifesto de indexação — <code style={{ background: "#FEE2E2", padding: "1px 5px", borderRadius: 4 }}>data/index_manifest.json</code></li>
+            </ul>
+            <p style={{ margin: "0 0 10px", fontSize: 13, color: "#991B1B" }}>
+              Para confirmar, digite <strong>RESETAR</strong> no campo abaixo:
+            </p>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                autoFocus
+                value={resetDigitado}
+                onChange={(e) => setResetDigitado(e.target.value)}
+                placeholder="Digite RESETAR"
+                style={{
+                  padding: "9px 12px", borderRadius: 9, border: "1px solid #FECDD3",
+                  fontSize: 13, fontFamily: "inherit", background: "#fff", width: 180,
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setResetZona(false); setResetDigitado(""); }
+                }}
+              />
+              <button
+                style={{
+                  padding: "9px 18px", fontSize: 13, borderRadius: 10, fontWeight: 600,
+                  fontFamily: "inherit", border: "none",
+                  cursor: resetDigitado === "RESETAR" && !resetando ? "pointer" : "not-allowed",
+                  background: resetDigitado === "RESETAR" ? "#DC2626" : "#E5E7EB",
+                  color: resetDigitado === "RESETAR" ? "#fff" : "#9CA3AF",
+                  transition: "background .2s, color .2s",
+                }}
+                disabled={resetDigitado !== "RESETAR" || resetando}
+                onClick={resetarSistema}
+              >
+                {resetando ? "Apagando…" : "Apagar tudo"}
+              </button>
+              <button
+                className="btn btn-ghost"
+                style={{ padding: "9px 14px", fontSize: 13 }}
+                onClick={() => { setResetZona(false); setResetDigitado(""); }}
+                disabled={resetando}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
