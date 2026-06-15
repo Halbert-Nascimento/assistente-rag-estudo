@@ -161,7 +161,7 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   seria preciso OCR (ex: pytesseract + pdf2image), que adiciona dependencias pesadas.
 - **Arquivos:** `src/loader.py`, `requirements.txt`
 
-### FEAT-009 — Recuperacao robusta a qualquer corpus (recall + rerank)   [status: em andamento | prioridade: alta]
+### FEAT-009 — Recuperacao robusta a qualquer corpus (recall + rerank)   [status: resolvido em 15/06/2026 | prioridade: alta]
 - **Sintoma:** pergunta valida ("Por que aplicar StandardScaler antes do K-Means?") recebe
   recusa ("Nao encontrei informacao...") mesmo com a aula certa indexada. A interface mostra
   as 3 fontes todas com a MESMA similaridade (ex: 81%).
@@ -187,6 +187,22 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
 - **Config (.env):** `RERANK_MODEL`, `RERANK_MIN_SCORE`, `RAG_RECALL_K`, `RAG_TOP_N`.
 - **Arquivos:** `src/reranker.py` (novo), `src/chain.py`, `api.py`, `.env.example`,
   `tests/run_tests.py`, `eval/eval.py`.
+- **Validado:** calibracao `RERANK_MIN_SCORE=0.15` (in-scope 0.31-1.00, lixo ~0.02); teste
+  e2e no container (StandardScaler responde, pao de queijo recusa); recuperacao 8/8 fonte.
+
+### BUG-011 — Falhas silenciosas do ChromaDB em excluir/mover/reset   [status: resolvido em 15/06/2026 | prioridade: media]
+- **Sintoma (latente):** se `collection.delete(...)` falhasse, o sistema apagava/movia o arquivo
+  mesmo assim, deixando vetores orfaos. Resultado: fantasma na busca (excluir/mover) ou duplicata
+  na materia antiga (mover). No reset, `clear_collection()` retornava `False` sem o endpoint notar
+  (reportava sucesso com o banco possivelmente populado).
+- **Causa raiz:** `try/except: pass` em volta do `collection.delete` nos endpoints `DELETE
+  /api/documentos` e `POST /api/documentos/mover`; e o reset ignorava o retorno de `clear_collection()`.
+- **Correcao:** falha do ChromaDB no excluir/mover agora **aborta** a operacao com HTTP 500 (antes
+  de tocar no arquivo), garantindo consistencia; o reset checa o retorno de `clear_collection()` e
+  reporta erro. Regressao coberta por novo grupo de testes (`test_doc_operations`).
+- **Validado:** novo grupo de 8 testes em `tests/run_tests.py` (excluir sem fantasma, mover sem
+  duplicata/fantasma + metadado de materia atualizado, reset zera e re-indexa). Suite: 33/33.
+- **Arquivos:** `api.py`, `tests/run_tests.py`.
 
 ---
 

@@ -318,6 +318,120 @@ def test_chain_refusal():
 
 
 # ===========================================================================
+# Grupo 5: Operacoes de documento — excluir, mover, reset (estado do ChromaDB)
+# ===========================================================================
+
+def test_doc_operations():
+    """Valida que excluir/mover/reset deixam o ChromaDB consistente: sem
+    fantasma (vetor de algo removido), sem duplicata e sem arquivo orfao.
+
+    Espelha a logica dos endpoints em api.py (DELETE /api/documentos,
+    POST /api/documentos/mover, POST /api/reset) usando os mesmos blocos
+    (collection.delete por source_path, clear_collection, manifest incremental).
+    Roda num banco/docs temporarios — nao toca em chroma_db/ real.
+    """
+    print("\n--- Operacoes de documento: excluir, mover, reset ---")
+    import json
+    import hashlib
+    from src.embedder import DocumentEmbedder
+    from src.loader import load_documents
+
+    tmp = Path(tempfile.mkdtemp(prefix='rag_docops_'))
+    try:
+        docs = tmp / 'docs'
+        (docs / 'ml').mkdir(parents=True)
+        (docs / 'rl').mkdir(parents=True)
+        (docs / 'ml' / 'silhouette.md').write_text(
+            "# Aula 06 | Nao Supervisionado\n\n## Silhouette Score\n\n"
+            "O Silhouette Score mede a qualidade dos clusters de -1 a 1. " * 10,
+            encoding='utf-8')
+        (docs / 'rl' / 'epsilon.md').write_text(
+            "# Aula 07 | Reinforcement Learning\n\n## Epsilon Decay\n\n"
+            "O Epsilon Decay reduz a taxa de exploracao do agente. " * 10,
+            encoding='utf-8')
+        (docs / 'notas.txt').write_text(
+            "Anotacoes gerais sobre overfitting e regularizacao. " * 10, encoding='utf-8')
+
+        emb = DocumentEmbedder(db_path=str(tmp / 'db'))
+        manifest = tmp / 'manifest.json'
+
+        def _md5(p):
+            return hashlib.md5(Path(p).read_bytes()).hexdigest()
+
+        def indexar():
+            """Espelha _run_indexing (api.py): indexacao incremental por hash."""
+            chunks, _ = load_documents(str(docs))
+            man = json.loads(manifest.read_text()) if manifest.exists() else {}
+            por = {}
+            for c in chunks:
+                por.setdefault(c['source_path'], []).append(c)
+            novos = []
+            for sp, cs in por.items():
+                h = _md5(docs / sp)
+                if man.get(sp) == h:
+                    continue
+                novos.extend(cs)
+                man[sp] = h
+            if novos:
+                emb.embed_and_store(novos)
+            manifest.write_text(json.dumps(man))
+
+        def conta(**w):
+            return len(emb.collection.get(where=w if w else None)['ids'])
+
+        indexar()
+        sp_ml = str(Path('ml') / 'silhouette.md')
+        sp_geral = 'notas.txt'
+
+        # --- EXCLUIR (espelha DELETE /api/documentos) ---
+        ml_antes = conta(source_path=sp_ml)
+        emb.collection.delete(where={'source_path': sp_geral})
+        man = json.loads(manifest.read_text()); man.pop(sp_geral, None)
+        manifest.write_text(json.dumps(man))
+        (docs / sp_geral).unlink()
+        check("Excluir: chunks do arquivo somem (sem fantasma)",
+              conta(source_path=sp_geral) == 0)
+        check("Excluir: outros arquivos ficam intactos",
+              conta(source_path=sp_ml) == ml_antes,
+              f"ml antes={ml_antes}, depois={conta(source_path=sp_ml)}")
+
+        # --- MOVER ml -> rl (espelha POST /api/documentos/mover) ---
+        total_antes = conta(source_path=sp_ml)
+        emb.collection.delete(where={'source_path': sp_ml})
+        man = json.loads(manifest.read_text()); man.pop(sp_ml, None)
+        manifest.write_text(json.dumps(man))
+        (docs / sp_ml).rename(docs / 'rl' / 'silhouette.md')
+        if not any((docs / 'ml').iterdir()):
+            (docs / 'ml').rmdir()
+        indexar()
+        sp_novo = str(Path('rl') / 'silhouette.md')
+        check("Mover: some da materia antiga (sem fantasma)",
+              conta(source_path=sp_ml) == 0 and conta(materia='ml') == 0)
+        check("Mover: aparece na materia nova", conta(source_path=sp_novo) >= 1)
+        check("Mover: sem duplicata (total de chunks igual ao original)",
+              conta(source_path=sp_novo) == total_antes,
+              f"antes={total_antes}, agora={conta(source_path=sp_novo)}")
+        metas = emb.collection.get(where={'source_path': sp_novo})['metadatas']
+        check("Mover: metadado 'materia' atualizado para a nova",
+              all(m.get('materia') == 'rl' for m in metas),
+              f"materias={set(m.get('materia') for m in metas)}")
+
+        # --- RESET (espelha clear_collection de POST /api/reset) ---
+        ok = emb.clear_collection()
+        check("Reset: clear_collection() retorna True e zera o banco",
+              ok and emb.collection.count() == 0,
+              f"ok={ok}, count={emb.collection.count()}")
+        # Apos o reset, o manifest e apagado: re-indexar repovoa do zero
+        manifest.unlink()
+        indexar()
+        check("Reset: re-indexacao apos reset repovoa o banco (sem skip indevido)",
+              emb.collection.count() >= 1, f"count={emb.collection.count()}")
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ===========================================================================
 
 if __name__ == '__main__':
     print("=" * 60)
@@ -328,6 +442,7 @@ if __name__ == '__main__':
     test_chunking()
     test_embedder()
     test_chain_refusal()
+    test_doc_operations()
 
     print("\n" + "=" * 60)
     print(f" RESULTADO: {PASSED} passaram | {FAILED} falharam")

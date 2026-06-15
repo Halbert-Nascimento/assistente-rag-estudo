@@ -39,7 +39,7 @@ data/                       ← Persistência de runtime (gitignored)
   └── index_manifest.json       hash por arquivo (indexação incremental)
 
 eval/                       ← Avaliação automática (10 perguntas com gabarito)
-tests/                      ← 21 testes de robustez (caminhos de erro)
+tests/                      ← 33 testes de robustez (caminhos de erro)
 ```
 
 ### Fluxo de uma pergunta
@@ -153,7 +153,7 @@ Detalhes do chat:
 ### Testes e avaliação
 
 ```bash
-# 21 testes de robustez — não requer Ollama
+# 33 testes de robustez — não requer Ollama
 python tests/run_tests.py
 
 # Avaliação de recuperação de contexto — não requer Ollama

@@ -293,11 +293,17 @@ async def mover_documento(rel_path: str = Form(...), nova_materia: str = Form(..
     if destino.resolve() == origem.resolve():
         return {"ok": True, "chunks": 0, "msg": "Arquivo já está nesta matéria."}
 
-    # Remove chunks antigos do ChromaDB (source_path = caminho relativo atual)
+    # Remove chunks antigos do ChromaDB (source_path = caminho relativo atual).
+    # Se falhar, aborta ANTES de mover/reindexar: senao o arquivo seria
+    # reindexado no novo caminho e os chunks antigos ficariam como duplicata
+    # (fantasma na materia anterior).
     try:
         get_embedder().collection.delete(where={"source_path": rel_path})
-    except Exception:
-        pass
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "erro": f"Falha ao remover vetores antigos do ChromaDB: {e}"},
+            status_code=500,
+        )
 
     # Remove entrada antiga do manifest
     manifest = _load(MANIFEST_FILE, {})
@@ -327,11 +333,15 @@ async def excluir_documento(rel_path: str):
     if not arquivo.exists():
         return JSONResponse({"ok": False, "erro": "Arquivo não encontrado."}, status_code=404)
 
-    # Remove chunks do ChromaDB
+    # Remove chunks do ChromaDB ANTES de apagar o arquivo. Se falhar, aborta:
+    # apagar o arquivo deixaria os vetores orfaos (fantasma na busca).
     try:
         get_embedder().collection.delete(where={"source_path": rel_path})
-    except Exception:
-        pass
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "erro": f"Falha ao remover vetores do ChromaDB: {e}"},
+            status_code=500,
+        )
 
     # Remove do manifest
     manifest = _load(MANIFEST_FILE, {})
@@ -615,9 +625,12 @@ async def resetar_sistema():
     """Reset completo: apaga docs, historico, metricas e vetores do ChromaDB."""
     erros = []
 
-    # 1. Limpa colecao do ChromaDB (apaga e recria vazia)
+    # 1. Limpa colecao do ChromaDB (apaga e recria vazia).
+    # clear_collection() engole a excecao e retorna False; checamos o retorno
+    # para nao reportar sucesso com o banco ainda populado (fantasma).
     try:
-        get_embedder().clear_collection()
+        if not get_embedder().clear_collection():
+            erros.append("ChromaDB: clear_collection() falhou (banco pode nao ter sido limpo)")
     except Exception as e:
         erros.append(f"ChromaDB: {e}")
 
