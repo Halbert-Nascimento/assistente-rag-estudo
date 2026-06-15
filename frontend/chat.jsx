@@ -128,6 +128,7 @@ function ChatView({ seed, resumeId, materia }) {
                     content: m.content,
                     fontes: m.fontes || [],
                     sim: m.sim || 0,
+                    relevancia: m.relevancia ?? null,
                     recusou: m.recusou || false,
                   }
             )
@@ -166,6 +167,7 @@ function ChatView({ seed, resumeId, materia }) {
           content: data.resposta,
           fontes: data.fontes || [],
           sim: data.sim || 0,
+          relevancia: data.relevancia ?? null,
           recusou: data.recusou,
         },
       ]);
@@ -272,9 +274,19 @@ function ChatView({ seed, resumeId, materia }) {
                     <p>{msg.content}</p>
                     <div className="why">
                       <Icon name="alert" size={14} />
-                      Similaridade top-1:{" "}
-                      <strong>{Math.round((msg.sim || 0) * 100)}%</strong> —
-                      abaixo do limiar de 68%
+                      {msg.relevancia != null ? (
+                        <>
+                          Relevância máxima dos trechos:{" "}
+                          <strong>{Math.round(msg.relevancia * 100)}%</strong> —
+                          insuficiente para responder
+                        </>
+                      ) : (
+                        <>
+                          Similaridade top-1:{" "}
+                          <strong>{Math.round((msg.sim || 0) * 100)}%</strong> —
+                          abaixo do limiar de 68%
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -397,7 +409,7 @@ function ChatView({ seed, resumeId, materia }) {
               ) : (
                 <>
                   <Icon name="shield" size={12} style={{ color: "var(--high)" }} />
-                  Responde somente com base nos documentos indexados · limiar 0,68
+                  Responde somente com base nos documentos indexados · recall + rerank
                 </>
               )}
             </span>

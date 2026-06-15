@@ -310,11 +310,13 @@ def test_chain_refusal():
     # 3c. Regressao: a recusa deterministica nao recupera contexto mas ainda
     #     reporta top_similarity (melhor cosseno) para diagnostico na UI.
     r_fora = chain.ask("Qual e a previsao do tempo para amanha em Toquio?")
-    check("Recusa nao retorna fontes mas reporta top_similarity",
+    check("Recusa nao retorna fontes mas reporta top_similarity e top_relevance",
           r_fora['context_chunks'] == 0
           and 'top_similarity' in r_fora
+          and 'top_relevance' in r_fora
           and r_fora['sources_detail'] == [],
-          f"chunks={r_fora['context_chunks']}, top_sim={r_fora.get('top_similarity')}")
+          f"chunks={r_fora['context_chunks']}, top_sim={r_fora.get('top_similarity')}, "
+          f"top_rel={r_fora.get('top_relevance')}")
 
 
 # ===========================================================================

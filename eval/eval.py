@@ -110,7 +110,7 @@ def evaluate_question(
     # --- Recuperacao de contexto (recall + rerank) ---
     t0 = time.perf_counter()
     try:
-        docs, _top_cosine = chain._retrieve(question['pergunta'])
+        docs, _top_cosine, _top_rel = chain._retrieve(question['pergunta'])
     except Exception as e:
         docs = []
         logger.error(f"Erro na recuperacao (pergunta {question['id']}): {e}")

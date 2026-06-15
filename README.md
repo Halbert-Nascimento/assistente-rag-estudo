@@ -145,7 +145,8 @@ uvicorn api:app --reload --port 8000
 
 Detalhes do chat:
 - Fontes consultadas aparecem em **seção retrátil** abaixo de cada resposta, com a similaridade
-- Perguntas fora do escopo são recusadas em ~30 ms com a similaridade exibida
+- Perguntas fora do escopo são recusadas em ~30 ms, exibindo a **relevância máxima** dos
+  trechos (score do reranker) — e não o cosseno, que pode ser alto mesmo sem relevância real
 - PDFs sem texto extraível (escaneados/imagem) são recusados com aviso — exigiriam OCR (backlog)
 
 ---

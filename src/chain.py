@@ -158,15 +158,18 @@ class RAGChain:
 
     def _retrieve(
         self, question: str, materia: Optional[str] = None
-    ) -> Tuple[List[Dict], float]:
+    ) -> Tuple[List[Dict], float, Optional[float]]:
         """
         Recupera contexto em dois estagios (recall + rerank).
         Se materia for informada, restringe a busca aos chunks daquela materia.
 
-        Retorna (chunks_relevantes, melhor_cosseno). Nunca lanca excecao:
-        em caso de falha devolve ([], 0.0). 'melhor_cosseno' e a maior
-        similaridade de cosseno entre os candidatos do recall (informativo para
-        a UI, mesmo quando a pergunta e recusada).
+        Retorna (chunks_relevantes, melhor_cosseno, melhor_relevancia).
+        Nunca lanca excecao: em caso de falha devolve ([], 0.0, None).
+          - melhor_cosseno: maior similaridade de cosseno entre os candidatos
+            do recall (sinal grosseiro, informativo).
+          - melhor_relevancia: maior score do reranker entre os candidatos
+            (0..1) — e o sinal REAL que decide a recusa. None quando o reranker
+            nao roda (fallback de cosseno), pois ai nao existe esse score.
         """
         # RECALL: rede ampla, SEM filtro de cosseno (o reranker decide relevancia)
         try:
@@ -176,10 +179,10 @@ class RAGChain:
             )
         except Exception as e:
             logger.error(f"Erro na recuperacao de contexto: {e}")
-            return [], 0.0
+            return [], 0.0, None
 
         if not candidates:
-            return [], 0.0
+            return [], 0.0, None
 
         top_cosine = max(c.get('similarity', 0.0) for c in candidates)
 
@@ -190,16 +193,16 @@ class RAGChain:
             # rerank() so adiciona 'rerank_score' se o modelo realmente rodou;
             # se o download/carregamento falhou, caimos no fallback de cosseno.
             if ranked and all('rerank_score' in c for c in ranked):
+                top_relevance = max(c['rerank_score'] for c in ranked)
                 relevant = [
                     c for c in ranked if c['rerank_score'] >= self.rerank_min_score
                 ][:self.top_n]
                 if not relevant:
-                    best = max(c['rerank_score'] for c in ranked)
                     logger.info(
                         f"Nenhum chunk passou do rerank_min_score {self.rerank_min_score} "
-                        f"(melhor: {best:.3f}) - pergunta provavelmente fora do escopo"
+                        f"(melhor: {top_relevance:.3f}) - pergunta provavelmente fora do escopo"
                     )
-                return relevant, top_cosine
+                return relevant, top_cosine, top_relevance
 
         # FALLBACK: limiar de cosseno (reranker indisponivel)
         relevant = [
@@ -210,7 +213,7 @@ class RAGChain:
                 f"[fallback cosseno] nenhum chunk passou de {self.min_similarity} "
                 f"(melhor: {top_cosine:.3f}) - pergunta provavelmente fora do escopo"
             )
-        return relevant, top_cosine
+        return relevant, top_cosine, None
 
     def _format_context(self, results: List[Dict]) -> str:
         """Formata os trechos recuperados em um unico bloco de contexto.
@@ -253,8 +256,8 @@ class RAGChain:
 
         Returns:
             Dict com 'answer', 'sources', 'sources_detail', 'context_chunks',
-            'top_similarity'. Nunca lanca excecao - retorna mensagem de erro
-            em 'answer'.
+            'top_similarity' e 'top_relevance' (score do reranker, ou None no
+            fallback). Nunca lanca excecao - retorna mensagem de erro em 'answer'.
         """
         if not question or not question.strip():
             return {
@@ -263,6 +266,7 @@ class RAGChain:
                 'sources_detail': [],
                 'context_chunks': 0,
                 'top_similarity': 0.0,
+                'top_relevance': None,
             }
 
         question = question.strip()
@@ -270,7 +274,8 @@ class RAGChain:
                     + (f" [escopo: {materia}]" if materia else ""))
 
         # Recuperacao em dois estagios: os mesmos chunks alimentam o LLM e as fontes
-        results, top_cosine = self._retrieve(question, materia=materia)
+        results, top_cosine, top_relevance = self._retrieve(question, materia=materia)
+        rel = round(top_relevance, 4) if top_relevance is not None else None
 
         if not results:
             # Recusa deterministica: nao gasta chamada de LLM
@@ -280,6 +285,7 @@ class RAGChain:
                 'sources_detail': [],
                 'context_chunks': 0,
                 'top_similarity': round(top_cosine, 4),
+                'top_relevance': rel,
             }
 
         context = self._format_context(results)
@@ -300,6 +306,7 @@ class RAGChain:
                 'sources_detail': sources_detail,
                 'context_chunks': len(results),
                 'top_similarity': round(top_cosine, 4),
+                'top_relevance': rel,
             }
 
         return {
@@ -308,6 +315,7 @@ class RAGChain:
             'sources_detail': sources_detail,
             'context_chunks': len(results),
             'top_similarity': round(top_cosine, 4),
+            'top_relevance':  rel,
         }
 
     def check_health(self) -> Dict:

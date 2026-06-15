@@ -393,6 +393,11 @@ async def chat(req: ChatRequest):
     ]
     # Confianca exibida no cabecalho/medidor = melhor cosseno entre os candidatos
     top_sim = round(result.get("top_similarity", 0.0), 3)
+    # Relevancia do reranker (sinal que DECIDE a recusa). None no fallback de cosseno.
+    # A UI usa isso para explicar a recusa sem a contradicao "71% < 68%" (cosseno alto
+    # mas relevancia baixa e exatamente o caso de casamento espurio).
+    rel = result.get("top_relevance")
+    relevancia = round(rel, 3) if rel is not None else None
 
     # Persistir stats
     stats_data = _load(STATS_FILE, {"perguntas": []})
@@ -429,6 +434,7 @@ async def chat(req: ChatRequest):
         "role": "assistant",
         "content": answer,
         "sim": top_sim,
+        "relevancia": relevancia,
         "recusou": recusou,
         "fontes": fontes,
     })
@@ -444,6 +450,7 @@ async def chat(req: ChatRequest):
         "resposta": answer,
         "fontes": fontes,
         "sim": top_sim,
+        "relevancia": relevancia,
         "recusou": recusou,
         "latencia_ms": latencia_ms,
         "session_id": session_id,

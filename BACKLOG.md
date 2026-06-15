@@ -204,6 +204,21 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   duplicata/fantasma + metadado de materia atualizado, reset zera e re-indexa). Suite: 33/33.
 - **Arquivos:** `api.py`, `tests/run_tests.py`.
 
+### BUG-012 — Recusa exibe "71% abaixo do limiar de 68%" (contradicao)   [status: resolvido em 15/06/2026 | prioridade: media]
+- **Sintoma:** na recusa, a UI mostrava "Similaridade top-1: 71% — abaixo do limiar de 68%" —
+  autocontraditorio (71% > 68%).
+- **Causa raiz:** a interface ainda contava a historia antiga (limiar de cosseno 0.68), mas quem
+  decide a recusa agora e o reranker. O cosseno pode ser alto (ex: "Copa 2022" = 0.71) com
+  relevancia real baixa (reranker = 0.006) — por isso a recusa esta CORRETA, so a explicacao
+  estava errada.
+- **Correcao:** `chain._retrieve`/`ask` passam a devolver `top_relevance` (melhor score do
+  reranker, ou None no fallback); `api.py` envia `relevancia` no `/api/chat` e persiste no
+  historico; `chat.jsx` exibe na recusa "Relevancia maxima dos trechos: X% — insuficiente"
+  (cai para o texto de cosseno so no fallback). Numero baixo agora condiz com a recusa.
+- **Validado:** e2e no container — "Copa do mundo..." recusa com cosseno 0.706 mas relevancia
+  0.006; StandardScaler responde com relevancia 0.97. Suite: 33/33.
+- **Arquivos:** `src/chain.py`, `eval/eval.py`, `api.py`, `frontend/chat.jsx`.
+
 ---
 
 ## Resolvidos
