@@ -51,14 +51,15 @@ Usuário digita pergunta (escopo geral OU de uma matéria)
 [Embedder] Converte pergunta em vetor
       │
       ▼
-[ChromaDB] Busca os 4 chunks mais similares (cosine similarity)
+[Recall — ChromaDB] Busca os 20 candidatos mais similares (cosine)
       │       └── se o chat tem escopo: filtra where={"materia": ...}
       ▼
-[Filtro] Descarta chunks com similaridade < 0.68
+[Rerank — cross-encoder] Reordena por relevância real pergunta↔chunk
+      │       e mantém só os top-4 acima da porta de relevância
       │
       ├── Nenhum chunk relevante? → Recusa SEM chamar o LLM (~30 ms)
       ▼
-[Prompt blindado] Contexto + pergunta → Ollama (llama3.1)
+[Prompt blindado] Contexto (top-4 reordenados) + pergunta → Ollama (llama3.1)
       │
       ▼
 Resposta + fontes consultadas (seção retrátil na interface)
@@ -71,6 +72,7 @@ Resposta + fontes consultadas (seção retrátil na interface)
 | Componente | Tecnologia |
 |---|---|
 | Embeddings PT-BR | `paraphrase-multilingual-MiniLM-L12-v2` |
+| Reranking (relevância) | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (multilíngue) |
 | Banco vetorial | ChromaDB (cosine similarity + filtro por metadado) |
 | LLM local | Ollama + llama3.1 |
 | Orquestração | LangChain Core |
@@ -219,9 +221,17 @@ O loader divide arquivos `.md` respeitando os cabeçalhos (`#`, `##`, `###`): ca
 
 O modelo de embeddings só enxerga o texto do chunk. A pergunta _"Quais são os 4 pilares estruturais do Reinforcement Learning?"_ não recuperava o chunk certo, porque o texto dele diz "quatro pilares" sem mencionar "Reinforcement Learning" (nome que só aparece no título da aula). Prefixar o título do documento em cada chunk levou esse chunk do **fora do top-10** para o **1º lugar** — versão simplificada do _contextual retrieval_ usado em produção.
 
-### Recusa determinística por limiar de similaridade
+### Recuperação em dois estágios: recall + rerank
 
-A busca vetorial **sempre** retorna os N chunks mais próximos — mesmo para "qual a receita de pão de queijo?". Medimos as similaridades reais: perguntas dentro do escopo ficam entre **0.727–0.875**; fora do escopo, entre **0.539–0.630**. O limiar de **0.68** fica no meio da zona de separação: se nenhum chunk passa, o sistema recusa **sem chamar o LLM** (~30 ms) e não depende da obediência do modelo.
+O app é distribuído e **cada usuário coloca os PDFs que quiser** — não dá para fixar um limiar de cosseno mágico, porque a similaridade do bi-encoder é grosseira e **dependente do corpus**. Um limiar fixo (a versão anterior usava `0.68`) deixava PDFs genéricos rasparem o corte e **diluírem o contexto**: a aula certa entrava junto com dois documentos irrelevantes e o LLM, preso ao prompt, recusava uma pergunta válida.
+
+A solução é o padrão _retrieve & rerank_:
+
+1. **Recall** — a busca vetorial traz os **20** candidatos mais próximos (rede ampla, sem limiar de cosseno).
+2. **Rerank** — um **cross-encoder multilíngue** (`mmarco-mMiniLMv2-L12`) lê pergunta **e** chunk juntos e devolve um score de relevância **calibrado e estável entre corpora**. Mantemos só os **top-4** acima da porta de relevância (`RERANK_MIN_SCORE`, calibrado em **0.15**).
+3. **Recusa determinística** — se nenhum candidato passa do score (ex.: "receita de pão de queijo" → ~0.02), recusa **sem chamar o LLM** (~30 ms). Casos-limite com casamento espúrio (ex.: "Copa 2022" casa com um chunk que cita o ano) passam ao LLM, que recusa via prompt blindado por não achar a resposta — o reranker garante que só os 4 chunks mais relevantes cheguem lá.
+
+O `CrossEncoder` já vem em `sentence-transformers` (sem nova dependência pip); o modelo é baixado uma vez e cacheado no mesmo volume `hf_cache`. Se ele não carregar, há **fallback automático** para o limiar de cosseno. Calibração revalidável com `python eval/eval.py --full`.
 
 ### Matérias por subpasta + chat com escopo
 
@@ -237,7 +247,7 @@ O ChromaDB foi configurado com `hnsw:space: cosine`: a distância cosseno indepe
 
 ### Prompt blindado contra alucinação
 
-O prompt exige: responder **apenas** com base nos documentos; recusar com frase exata quando não souber; não citar nomes de arquivo no texto (as fontes são exibidas estruturadas pela interface). Em conjunto com o limiar de similaridade, são **duas camadas de defesa** contra alucinação.
+O prompt exige: responder **apenas** com base nos documentos; recusar com frase exata quando não souber; não citar nomes de arquivo no texto (as fontes são exibidas estruturadas pela interface). Em conjunto com o reranker, são **duas camadas de defesa** contra alucinação: o reranker garante contexto relevante e sem diluição; o prompt blindado recusa quando mesmo o melhor contexto não contém a resposta.
 
 ### Tratamento de erros em todas as camadas
 

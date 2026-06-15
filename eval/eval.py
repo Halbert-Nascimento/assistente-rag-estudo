@@ -90,13 +90,15 @@ def check_source(sources: List[str], expected_source: str) -> bool:
 
 def evaluate_question(
     question: Dict,
-    embedder,
-    chain=None,
+    chain,
+    full: bool = False,
 ) -> Dict:
     """
     Avalia uma unica pergunta.
-    - Se chain for None: avalia apenas a recuperacao de contexto (sem LLM).
-    - Se chain for fornecida: avalia o pipeline completo.
+    - A recuperacao SEMPRE passa pelo pipeline real (recall + rerank) via
+      chain._retrieve, para validar a robustez mesmo sem o Ollama ligado.
+      Chunks selecionados = 0 ja significa recusa correta (fora do escopo).
+    - Se full=True: tambem chama o LLM (chain.ask) e mede a geracao.
     """
     result: Dict[str, Any] = {
         'id':          question['id'],
@@ -105,10 +107,10 @@ def evaluate_question(
         'escopo':      question['escopo'],
     }
 
-    # --- Recuperacao de contexto ---
+    # --- Recuperacao de contexto (recall + rerank) ---
     t0 = time.perf_counter()
     try:
-        docs = embedder.search(question['pergunta'], n_results=4)
+        docs, _top_cosine = chain._retrieve(question['pergunta'])
     except Exception as e:
         docs = []
         logger.error(f"Erro na recuperacao (pergunta {question['id']}): {e}")
@@ -121,9 +123,9 @@ def evaluate_question(
         question.get('fonte_esperada') or '',
     )
 
-    if not chain:
+    if not full:
         result['modo'] = 'recuperacao_apenas'
-        result['aviso'] = 'Ollama indisponivel. Apenas a recuperacao foi avaliada.'
+        result['aviso'] = 'Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada.'
         return result
 
     # --- Geracao com LLM ---
@@ -272,31 +274,33 @@ def main():
 
     logger.info(f"ChromaDB: {stats['total_documentos']} chunks indexados")
 
-    # Inicializa chain (opcional — so se --full)
-    chain = None
+    # A chain e SEMPRE necessaria: a recuperacao passa pelo recall + rerank.
+    # O construtor de OllamaLLM nao abre conexao, entao funciona sem Ollama;
+    # o reranker carrega preguicosamente na 1a busca.
+    logger.info("Inicializando RAGChain (recall + rerank)...")
+    from src.chain import RAGChain
+    chain = RAGChain(embedder=embedder)
+
+    full = False
     if args.full:
-        logger.info("Inicializando RAGChain (modo completo)...")
         try:
-            from src.chain import RAGChain
-            chain = RAGChain(embedder=embedder)
-            # Teste rapido de conectividade
-            chain.llm.invoke('ping')
+            chain.llm.invoke('ping')  # teste rapido de conectividade
+            full = True
             logger.info("Ollama conectado")
         except Exception as e:
             logger.warning(
                 f"Ollama indisponivel ({e}). "
                 "Rodando em modo recuperacao-apenas. Use --full quando o Ollama estiver ativo."
             )
-            chain = None
 
-    mode = 'completo' if chain else 'recuperacao_apenas'
+    mode = 'completo' if full else 'recuperacao_apenas'
     logger.info(f"Modo de avaliacao: {mode}")
 
     # Avalia todas as perguntas
     results = []
     for q in questions:
         logger.info(f"[{q['id']:02d}/10] {q['pergunta'][:60]}...")
-        result = evaluate_question(q, embedder, chain)
+        result = evaluate_question(q, chain, full)
         results.append(result)
 
     # Exibe relatorio no terminal

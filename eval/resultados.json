@@ -1,118 +1,118 @@
 {
-  "timestamp": "2026-06-13T20:33:45.805736",
+  "timestamp": "2026-06-15T15:20:22.069899",
   "modo": "recuperacao_apenas",
   "modelo_embeddings": "paraphrase-multilingual-MiniLM-L12-v2",
-  "total_chunks_db": 62,
+  "total_chunks_db": 253,
   "resultados": [
     {
       "id": 1,
       "pergunta": "O que e o Metodo do Cotovelo e para que ele e usado no K-Means?",
       "dificuldade": "facil",
       "escopo": "dentro",
-      "recuperacao_ms": 41.3,
-      "chunks_encontrados": 4,
+      "recuperacao_ms": 5397.8,
+      "chunks_encontrados": 3,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 2,
       "pergunta": "Por que e obrigatorio aplicar o StandardScaler antes de rodar o K-Means?",
       "dificuldade": "facil",
       "escopo": "dentro",
-      "recuperacao_ms": 20.9,
+      "recuperacao_ms": 618.5,
       "chunks_encontrados": 4,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 3,
       "pergunta": "Quais sao os 4 pilares estruturais do Reinforcement Learning apresentados na aula?",
       "dificuldade": "facil",
       "escopo": "dentro",
-      "recuperacao_ms": 20.3,
+      "recuperacao_ms": 749.3,
       "chunks_encontrados": 4,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 4,
       "pergunta": "O que e o Silhouette Score e como interpretar seus valores?",
       "dificuldade": "medio",
       "escopo": "dentro",
-      "recuperacao_ms": 19.5,
-      "chunks_encontrados": 4,
+      "recuperacao_ms": 629.7,
+      "chunks_encontrados": 2,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 5,
       "pergunta": "O que e o Epsilon Decay no Reinforcement Learning e por que ele inicia com valor alto?",
       "dificuldade": "medio",
       "escopo": "dentro",
-      "recuperacao_ms": 20.7,
+      "recuperacao_ms": 612.7,
       "chunks_encontrados": 4,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 6,
       "pergunta": "Qual a diferenca entre RAG, Fine-Tuning e RLHF como tecnicas de customizacao de modelos de IA?",
       "dificuldade": "medio",
       "escopo": "dentro",
-      "recuperacao_ms": 24.1,
+      "recuperacao_ms": 699.3,
       "chunks_encontrados": 4,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 7,
       "pergunta": "Explique o funcionamento do mecanismo de atencao (Attention) e qual artigo o introduziu.",
       "dificuldade": "dificil",
       "escopo": "dentro",
-      "recuperacao_ms": 22.4,
-      "chunks_encontrados": 4,
+      "recuperacao_ms": 588.7,
+      "chunks_encontrados": 2,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 8,
       "pergunta": "Por que redes neurais sao chamadas de 'caixa preta' e qual o problema disso em areas criticas?",
       "dificuldade": "dificil",
       "escopo": "dentro",
-      "recuperacao_ms": 28.5,
-      "chunks_encontrados": 4,
+      "recuperacao_ms": 591.2,
+      "chunks_encontrados": 2,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 9,
       "pergunta": "Qual e a receita tradicional do pao de queijo mineiro?",
       "dificuldade": "fora_do_escopo",
       "escopo": "fora",
-      "recuperacao_ms": 26.9,
-      "chunks_encontrados": 4,
+      "recuperacao_ms": 697.3,
+      "chunks_encontrados": 0,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     },
     {
       "id": 10,
       "pergunta": "Quem ganhou a Copa do Mundo de futebol em 2022?",
       "dificuldade": "fora_do_escopo",
       "escopo": "fora",
-      "recuperacao_ms": 24.9,
-      "chunks_encontrados": 4,
+      "recuperacao_ms": 617.1,
+      "chunks_encontrados": 1,
       "fonte_correta": true,
       "modo": "recuperacao_apenas",
-      "aviso": "Ollama indisponivel. Apenas a recuperacao foi avaliada."
+      "aviso": "Ollama indisponivel. Apenas a recuperacao (recall+rerank) foi avaliada."
     }
   ],
   "resumo": {

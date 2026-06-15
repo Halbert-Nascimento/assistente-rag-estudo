@@ -27,7 +27,8 @@ services:
       - ./docs:/app/docs
       - ./chroma_db:/app/chroma_db
       - ./data:/app/data
-      # Cache do modelo de embeddings (~470MB) - evita re-download ao recriar o container
+      # Cache dos modelos HuggingFace (embeddings ~470MB + reranker cross-encoder
+      # ~470MB) - evita re-download ao recriar o container
       - hf_cache:/root/.cache/huggingface
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434

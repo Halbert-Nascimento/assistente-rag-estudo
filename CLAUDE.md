@@ -4,6 +4,15 @@
 > pendentes, com causa raiz e correcao proposta) e a fase atual neste arquivo.
 > Ao encontrar novos problemas ou ideias de melhoria, **registre-os no `BACKLOG.md`
 > antes de corrigir** — ele e o registro vivo do andamento do projeto.
+
+> **Documentacao tecnica (OBRIGATORIO ao final de cada ajuste):** sempre que uma
+> alteracao mudar algo documentavel — **nova biblioteca/dependencia, tecnologia ou
+> modelo, mudanca de arquitetura ou de fluxo, novos parametros/configuracoes ou
+> ajustes de valores** (ex: limiares, env vars) — **atualize o guia tecnico** em
+> `../docs referencia/guia-tecnico-completo.html` (um nivel acima da raiz do
+> projeto) como ultimo passo do trabalho. Reflita: secao de tecnologias/bibliotecas,
+> diagrama/fluxo de arquitetura, tabela de parametros e as decisoes tecnicas
+> afetadas. Mantenha o sumario lateral (TOC) e os links de ancora consistentes.
     
 ## Fase 1: Setup Isolado (✅ Concluído)
 - [x] Criação da estrutura de pastas (`src`, `eval`, `docs`).

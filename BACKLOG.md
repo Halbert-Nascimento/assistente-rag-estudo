@@ -161,6 +161,33 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   seria preciso OCR (ex: pytesseract + pdf2image), que adiciona dependencias pesadas.
 - **Arquivos:** `src/loader.py`, `requirements.txt`
 
+### FEAT-009 — Recuperacao robusta a qualquer corpus (recall + rerank)   [status: em andamento | prioridade: alta]
+- **Sintoma:** pergunta valida ("Por que aplicar StandardScaler antes do K-Means?") recebe
+  recusa ("Nao encontrei informacao...") mesmo com a aula certa indexada. A interface mostra
+  as 3 fontes todas com a MESMA similaridade (ex: 81%).
+- **Causa raiz (dupla):**
+  1. **Limiar de cosseno absoluto e fixo** (`MIN_SIMILARITY=0.68` em `src/chain.py`), calibrado
+     contra UM conjunto especifico de documentos. O app sera distribuido e cada usuario coloca
+     PDFs arbitrarios; com PDFs genericos ("Gerencia de Projetos", "Guia Tecnico"), eles raspam
+     o 0.68 com vocabulario generico e **diluem o contexto** — 2/3 dos chunks passados ao LLM
+     sao irrelevantes, entao o LLM (preso ao prompt) recusa. A similaridade do cosseno do MiniLM
+     e um sinal grosseiro e **dependente do corpus**: nenhum numero magico serve para todo PDF.
+  2. **Similaridade por arquivo errada:** `api.py` faz uma busca top-1 separada e aplica o MESMO
+     valor a todas as fontes (`fontes = [{"doc": s, "sim": top_sim} ...]`).
+- **Correcao:**
+  1. **Recuperacao em dois estagios** em `src/chain.py`: recall amplo por embedding (top-K, sem
+     limiar) + **cross-encoder reranker** multilingue (`src/reranker.py`) que reordena por
+     relevancia real pergunta<->chunk. Score do reranker e calibrado e estavel entre corpora.
+     Mantem so os top-N acima de `RERANK_MIN_SCORE`; recusa deterministica (sem LLM) se nenhum
+     passar. `CrossEncoder` ja vem em `sentence-transformers` — sem nova dependencia pip.
+     Fallback automatico para o limiar de cosseno se o modelo de rerank nao carregar.
+  2. **`chain.ask()` devolve `sources_detail`** (similaridade real por fonte = max cosseno dos
+     chunks daquele arquivo) e `top_similarity`; `api.py` usa isso e elimina a busca top-1
+     duplicada. O `SourceCard` ja renderiza `f.sim` por fonte.
+- **Config (.env):** `RERANK_MODEL`, `RERANK_MIN_SCORE`, `RAG_RECALL_K`, `RAG_TOP_N`.
+- **Arquivos:** `src/reranker.py` (novo), `src/chain.py`, `api.py`, `.env.example`,
+  `tests/run_tests.py`, `eval/eval.py`.
+
 ---
 
 ## Resolvidos

@@ -71,9 +71,18 @@ def get_chain():
 
 @app.on_event("startup")
 def warmup():
-    # Carrega o modelo de embeddings em background para que a primeira
-    # chamada de API nao trave ~2s (BUG-001)
-    threading.Thread(target=get_embedder, daemon=True).start()
+    # Carrega os modelos pesados em background para que a primeira chamada de
+    # API nao trave: embeddings (BUG-001) e o cross-encoder de reranking
+    # (FEAT-009), que so carregaria na 1a pergunta do chat.
+    def _aquecer():
+        get_embedder()
+        try:
+            from src.reranker import get_reranker
+            get_reranker().rerank("aquecimento", [{"content": "texto de aquecimento"}])
+        except Exception:
+            pass  # se o reranker falhar, a chain cai no fallback de cosseno
+
+    threading.Thread(target=_aquecer, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -357,20 +366,23 @@ async def chat(req: ChatRequest):
         return JSONResponse({"erro": "pergunta vazia"}, status_code=400)
 
     t0 = time.perf_counter()
-    embedder = get_embedder()
-    where = {"materia": materia} if materia else None
 
-    # Similaridade top-1 (busca rapida, sem LLM) — respeita o escopo
-    docs_sim = embedder.search(pergunta, n_results=1, where=where)
-    top_sim = round(docs_sim[0]["similarity"], 3) if docs_sim else 0.0
-
-    # Pipeline RAG completo (com escopo de materia, se informado)
+    # Pipeline RAG completo (recall + rerank, com escopo de materia se informado).
+    # A propria chain faz a busca uma unica vez e devolve a similaridade por fonte
+    # — nao ha mais busca top-1 separada (que aplicava o mesmo % a todas as fontes).
     result = get_chain().ask(pergunta, materia=materia)
     latencia_ms = round((time.perf_counter() - t0) * 1000)
 
     recusou = result["context_chunks"] == 0
     answer = _limpa_citacao_inline(result["answer"]) if not recusou else result["answer"]
-    fontes = [{"doc": s, "sim": top_sim} for s in result.get("sources", [])]
+
+    # Similaridade REAL por arquivo (maior cosseno dos chunks daquela fonte)
+    fontes = [
+        {"doc": d["doc"], "sim": round(d["sim"], 3)}
+        for d in result.get("sources_detail", [])
+    ]
+    # Confianca exibida no cabecalho/medidor = melhor cosseno entre os candidatos
+    top_sim = round(result.get("top_similarity", 0.0), 3)
 
     # Persistir stats
     stats_data = _load(STATS_FILE, {"perguntas": []})
