@@ -30,6 +30,11 @@ services:
       # Cache dos modelos HuggingFace (embeddings ~470MB + reranker cross-encoder
       # ~470MB) - evita re-download ao recriar o container
       - hf_cache:/root/.cache/huggingface
+    # Carrega o .env no container (chunking, RAG_TOP_N, reranker). As vars de
+    # 'environment:' abaixo tem PRECEDENCIA sobre o env_file (ex: o OLLAMA_BASE_URL
+    # interno do Docker prevalece sobre o localhost do .env).
+    env_file:
+      - .env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3.1

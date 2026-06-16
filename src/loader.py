@@ -5,9 +5,18 @@ Le PDFs, MDs e TXTs da pasta docs/ com tratamento robusto de erros.
 
 import hashlib
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Tuple
 from datetime import datetime
+
+from dotenv import load_dotenv
+
+# Carrega o .env para que os parametros de chunking (RAG_CHUNK_SIZE etc.)
+# valham em qualquer ponto de entrada (api, eval, tests, standalone).
+# override=False: nao sobrescreve variaveis ja definidas no ambiente
+# (ex: as injetadas pelo Docker via env_file).
+load_dotenv(override=False)
 
 # O pacote moderno e 'pypdf' (modulo pypdf); 'PyPDF2' e o nome legado.
 # Importar so PyPDF2 fazia TODO PDF falhar com pypdf instalado (BUG-006).
@@ -42,6 +51,13 @@ class DocumentLoader:
         self.docs_dir = Path(docs_dir)
         self.processed_files: List[str] = []
         self.failed_files: List[Dict] = []
+
+        # Parametros de chunking configuraveis por .env, com fallback nas
+        # constantes de classe (512/50/120). ATENCAO: alterar estes valores
+        # exige reprocessar o ChromaDB (os chunks salvos mudam de tamanho).
+        self.CHUNK_SIZE    = int(os.getenv('RAG_CHUNK_SIZE', self.CHUNK_SIZE))
+        self.CHUNK_OVERLAP = int(os.getenv('RAG_CHUNK_OVERLAP', self.CHUNK_OVERLAP))
+        self.MIN_CHUNK     = int(os.getenv('RAG_MIN_CHUNK', self.MIN_CHUNK))
 
         if not self.docs_dir.exists():
             logger.warning(f"Diretorio {self.docs_dir} nao existe. Criando...")
