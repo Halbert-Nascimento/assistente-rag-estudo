@@ -19,6 +19,7 @@ Fluxo de uma pergunta (metodo ask) — recuperacao em DOIS estagios (FEAT-009):
 
 import logging
 import os
+import unicodedata
 from typing import List, Dict, Optional, Tuple
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
@@ -31,9 +32,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Frase padrao de recusa - usada tanto na recusa deterministica (sem LLM)
-# quanto exigida do LLM via prompt. O eval.py verifica esta frase.
-REFUSAL_MESSAGE = "Nao encontrei informacao sobre isso nos documentos disponibilizados."
+# DUAS recusas distintas (UX), conforme o motivo:
+#  - REFUSAL_MESSAGE: recusa DETERMINISTICA (sem LLM) quando NADA relevante e
+#    recuperado — pergunta fora do escopo. Mensagem curta e objetiva.
+#  - INSUFFICIENT_MESSAGE: o LLM FOI acionado (havia contexto relacionado), mas
+#    o material nao basta para responder (ex: pedir resumo do documento inteiro).
+#    Mensagem amigavel que explica e sugere uma acao. E tambem a frase exigida
+#    do LLM via prompt (regra 2).
+REFUSAL_MESSAGE = "Não encontrei informação sobre isso nos documentos disponibilizados."
+
+INSUFFICIENT_MESSAGE = (
+    "Encontrei conteúdo relacionado nos documentos, mas não material suficiente "
+    "para responder a essa pergunta. Isso costuma acontecer quando a pergunta é "
+    "muito ampla (como pedir um resumo geral) — experimente perguntar sobre um "
+    "tópico ou conceito mais específico das aulas."
+)
+
+
+def _normalize_txt(s: str) -> str:
+    """Minusculas e sem acentos, para comparacao robusta de texto."""
+    nfkd = unicodedata.normalize('NFKD', s or '')
+    return ''.join(c for c in nfkd if not unicodedata.combining(c)).lower()
+
+
+# Marcadores que identificam uma recusa GERADA pelo LLM (ele as vezes parafraseia
+# a frase exata do prompt). Usados para detectar "tem contexto, mas insuficiente".
+_REFUSAL_MARKERS = (
+    "material suficiente para responder",
+    "nao encontrei informacao",
+    "nao encontrei material",
+)
+
+
+def _looks_like_refusal(answer: str) -> bool:
+    """True se a resposta do LLM e, na pratica, uma recusa (apesar de ter contexto)."""
+    n = _normalize_txt(answer)
+    return any(m in n for m in _REFUSAL_MARKERS)
+
 
 # Prompt blindado: o LLM e proibido de alucinar fora dos documentos
 RAG_PROMPT_TEMPLATE = """Voce e um assistente de estudos especializado. Sua unica fonte
@@ -42,7 +77,7 @@ de informacao sao os DOCUMENTOS fornecidos abaixo.
 REGRAS OBRIGATORIAS:
 1. Responda APENAS com base nos DOCUMENTOS. Nao invente, nao suponha.
 2. Se a resposta nao estiver nos documentos, diga exatamente:
-   "Nao encontrei informacao sobre isso nos documentos disponibilizados."
+   "Encontrei conteúdo relacionado nos documentos, mas não material suficiente para responder a essa pergunta. Isso costuma acontecer quando a pergunta é muito ampla (como pedir um resumo geral) — experimente perguntar sobre um tópico ou conceito mais específico das aulas."
 3. NAO cite o nome dos arquivos na resposta (as fontes sao exibidas
    separadamente pela interface).
 4. Responda em portugues do Brasil.
@@ -256,8 +291,10 @@ class RAGChain:
 
         Returns:
             Dict com 'answer', 'sources', 'sources_detail', 'context_chunks',
-            'top_similarity' e 'top_relevance' (score do reranker, ou None no
-            fallback). Nunca lanca excecao - retorna mensagem de erro em 'answer'.
+            'top_similarity', 'top_relevance' (score do reranker, ou None no
+            fallback), 'recusou' (bool) e 'motivo'
+            ('fora_escopo' | 'insuficiente' | None).
+            Nunca lanca excecao - retorna mensagem de erro em 'answer'.
         """
         if not question or not question.strip():
             return {
@@ -267,6 +304,8 @@ class RAGChain:
                 'context_chunks': 0,
                 'top_similarity': 0.0,
                 'top_relevance': None,
+                'recusou': False,
+                'motivo': None,
             }
 
         question = question.strip()
@@ -278,7 +317,8 @@ class RAGChain:
         rel = round(top_relevance, 4) if top_relevance is not None else None
 
         if not results:
-            # Recusa deterministica: nao gasta chamada de LLM
+            # FORA DE ESCOPO: nada relevante recuperado. Recusa deterministica
+            # (sem LLM), com a mensagem curta e objetiva.
             return {
                 'answer': REFUSAL_MESSAGE,
                 'sources': [],
@@ -286,6 +326,8 @@ class RAGChain:
                 'context_chunks': 0,
                 'top_similarity': round(top_cosine, 4),
                 'top_relevance': rel,
+                'recusou': True,
+                'motivo': 'fora_escopo',
             }
 
         context = self._format_context(results)
@@ -294,7 +336,7 @@ class RAGChain:
         sources, sources_detail = self._build_sources(results)
 
         try:
-            answer = self.llm.invoke(prompt_text)
+            answer = self.llm.invoke(prompt_text).strip()
         except Exception as e:
             logger.error(f"Erro ao chamar o LLM: {e}")
             return {
@@ -307,15 +349,35 @@ class RAGChain:
                 'context_chunks': len(results),
                 'top_similarity': round(top_cosine, 4),
                 'top_relevance': rel,
+                'recusou': False,
+                'motivo': None,
+            }
+
+        if _looks_like_refusal(answer):
+            # MATERIAL INSUFICIENTE: havia contexto relacionado, mas o LLM nao
+            # conseguiu responder. Padroniza a mensagem amigavel e oculta as
+            # fontes (foi recusa, nao resposta) — evita "Alta confianca" + recusa.
+            logger.info("LLM recusou apesar de ter contexto - material insuficiente")
+            return {
+                'answer': INSUFFICIENT_MESSAGE,
+                'sources': [],
+                'sources_detail': [],
+                'context_chunks': len(results),
+                'top_similarity': round(top_cosine, 4),
+                'top_relevance': rel,
+                'recusou': True,
+                'motivo': 'insuficiente',
             }
 
         return {
-            'answer':         answer.strip(),
+            'answer':         answer,
             'sources':        sources,
             'sources_detail': sources_detail,
             'context_chunks': len(results),
             'top_similarity': round(top_cosine, 4),
             'top_relevance':  rel,
+            'recusou':        False,
+            'motivo':         None,
         }
 
     def check_health(self) -> Dict:

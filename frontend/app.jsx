@@ -208,12 +208,12 @@ function App() {
           className="main-body"
           style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
         >
-          {view === "home"       && <div className="scroll"><HomeView       goto={goto} ask={ask} temas={temas} openConversation={openConversation} /></div>}
+          {view === "home"       && <div className="scroll"><HomeView       goto={goto} ask={ask} newChat={newChat} temas={temas} openConversation={openConversation} /></div>}
           {view === "chat"       && <ChatView key={nonce} seed={seed} resumeId={resumeId} materia={materia} />}
           {view === "temas"      && <div className="scroll"><TemasView      goto={goto} temas={temas} openMateria={openMateria} /></div>}
           {view === "docs"       && <div className="scroll"><DocumentosView temas={temasList} onIndexed={refreshTemas} /></div>}
           {view === "desempenho" && <div className="scroll"><DesempenhoView /></div>}
-          {view === "historico"  && <div className="scroll"><HistoricoView  goto={goto} temas={temasList} openConversation={openConversation} /></div>}
+          {view === "historico"  && <div className="scroll"><HistoricoView  goto={goto} newChat={newChat} temas={temasList} openConversation={openConversation} /></div>}
         </div>
       </div>
     </div>

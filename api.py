@@ -14,6 +14,7 @@ import os
 import re
 import threading
 import time
+import unicodedata
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -145,6 +146,57 @@ def _titulo_doc(path: Path) -> str:
     except Exception:
         pass
     return path.stem.replace("-", " ").replace("_", " ").title()
+
+
+def _sem_acentos(s: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c)
+    ).lower()
+
+
+# Cabecalhos genericos/administrativos que NAO sao conceitos de estudo (FEAT-005).
+_SECOES_GENERICAS = (
+    "visao geral", "fluxo", "sintese", "destaque", "alerta", "desafio", "atividade",
+    "quiz", "entrega", "validac", "mercado de trabalho", "vagas", "pratica tecnica",
+    "interface", "transic", "entendimento do cenario", "casos de mercado", "evoluc",
+    "referencia", "sumario", "introducao", "conclusao",
+)
+
+
+def _conceitos_de_doc(path: Path, limite: int = 6) -> list:
+    """Extrai conceitos de estudo dos cabecalhos de secao (##/###) de um .md/.txt.
+
+    O conteudo (e nao o titulo do arquivo) e a melhor fonte de perguntas
+    especificas e respondiveis pelo RAG. Perguntas sobre o documento inteiro
+    ("pontos principais de X") nao funcionam bem porque o RAG recupera
+    fragmentos, nao resume o documento todo (FEAT-005 melhorado)."""
+    if path.suffix.lower() not in (".md", ".txt"):
+        return []
+    conceitos = []
+    try:
+        for ln in path.read_text(encoding="utf-8", errors="ignore").split("\n"):
+            s = ln.strip()
+            if not s.startswith("##"):     # so secoes (##/###); pula titulo (#) do doc
+                continue
+            t = s.lstrip("#").strip()
+            # remove rotulo em CAIXA ALTA com emoji (ex: "⚠️ ATENCAO:", "💡 INSIGHT:")
+            t = re.sub(r"^[^\wÀ-ÿ]*[A-ZÀ-Ý]{3,}\s*:\s*", "", t)
+            # remove numeracao de secao ("1. ", "2. ") e enfase markdown (*...*)
+            t = re.sub(r"^\d+\.\s*", "", t).replace("*", "").strip()
+            # remove emojis/simbolos residuais no inicio
+            t = re.sub(r"^[^\wÀ-ÿ(]+", "", t).strip()
+            low = _sem_acentos(t)
+            if len(t) < 5 or len(t) > 70:
+                continue
+            if any(g in low for g in _SECOES_GENERICAS):
+                continue
+            if t not in conceitos:
+                conceitos.append(t)
+            if len(conceitos) >= limite:
+                break
+    except Exception:
+        pass
+    return conceitos
 
 
 def _run_indexing(force: bool = False) -> dict:
@@ -383,7 +435,10 @@ async def chat(req: ChatRequest):
     result = get_chain().ask(pergunta, materia=materia)
     latencia_ms = round((time.perf_counter() - t0) * 1000)
 
-    recusou = result["context_chunks"] == 0
+    # 'recusou' agora vem da chain (cobre fora-de-escopo E material insuficiente);
+    # 'motivo' diferencia os dois para a UI escolher a mensagem/banner certos.
+    recusou = result.get("recusou", result["context_chunks"] == 0)
+    motivo = result.get("motivo")
     answer = _limpa_citacao_inline(result["answer"]) if not recusou else result["answer"]
 
     # Similaridade REAL por arquivo (maior cosseno dos chunks daquela fonte)
@@ -436,6 +491,7 @@ async def chat(req: ChatRequest):
         "sim": top_sim,
         "relevancia": relevancia,
         "recusou": recusou,
+        "motivo": motivo,
         "fontes": fontes,
     })
     conv["msgs"] = len(conv["mensagens"])
@@ -452,6 +508,7 @@ async def chat(req: ChatRequest):
         "sim": top_sim,
         "relevancia": relevancia,
         "recusou": recusou,
+        "motivo": motivo,
         "latencia_ms": latencia_ms,
         "session_id": session_id,
     }
@@ -576,7 +633,11 @@ async def api_stats():
         {"faixa": "Recusadas",       "sub": "sim < 0.68", "v": recusadas, "cor": "var(--low)"},
     ]
 
-    # Sugestoes dinamicas: titulos dos 3 documentos mais recentes (FEAT-005)
+    # Sugestoes dinamicas baseadas em CONCEITOS extraidos do conteudo dos
+    # documentos mais recentes (FEAT-005 melhorado). Antes era "Me explique os
+    # pontos principais de <titulo>", que pede um resumo do documento inteiro —
+    # o RAG recupera fragmentos, nao resume o todo, entao o LLM recusava.
+    # Perguntas sobre conceitos especificos (secoes ##/###) sao respondiveis.
     docs_dir = _docs_dir()
     sugestoes = []
     if docs_dir.exists():
@@ -584,14 +645,25 @@ async def api_stats():
             (f for f in docs_dir.rglob("*") if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS),
             key=lambda f: f.stat().st_mtime,
             reverse=True,
-        )[:3]
-        sugestoes = [f"Me explique os pontos principais de {_titulo_doc(f)}" for f in recentes]
-    if not sugestoes:
-        sugestoes = [
-            "O que e aprendizado supervisionado?",
-            "Como funciona o K-Means?",
-            "Quais sao os 4 pilares do Reinforcement Learning?",
-        ]
+        )
+        conceitos = []
+        for f in recentes:
+            for c in _conceitos_de_doc(f):
+                if c not in conceitos:
+                    conceitos.append(c)
+        templates = ["O que e {}?", "Explique {}."]
+        sugestoes = [templates[i % len(templates)].format(c) for i, c in enumerate(conceitos[:3])]
+    # Completa (ou substitui, se nao houver conceitos) com sugestoes estaticas
+    for estatica in (
+        "O que e aprendizado supervisionado?",
+        "Como funciona o K-Means?",
+        "Quais sao os 4 pilares do Reinforcement Learning?",
+    ):
+        if len(sugestoes) >= 3:
+            break
+        if estatica not in sugestoes:
+            sugestoes.append(estatica)
+    sugestoes = sugestoes[:3]
 
     return {
         "perguntas": total,

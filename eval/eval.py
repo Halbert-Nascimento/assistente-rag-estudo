@@ -30,7 +30,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 PERGUNTAS_PATH = Path(__file__).parent / 'perguntas_teste.json'
-FRASE_RECUSA   = 'nao encontrei informacao sobre isso nos documentos'
+# Trechos estaveis das DUAS frases de recusa (src/chain.py), normalizados sem
+# acentos: a curta (fora de escopo, REFUSAL_MESSAGE) e a amigavel (material
+# insuficiente, INSUFFICIENT_MESSAGE / regra 2 do prompt).
+FRASES_RECUSA = (
+    'nao encontrei informacao sobre isso nos documentos',
+    'material suficiente para responder',
+)
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +79,11 @@ def check_keywords(answer: str, keywords: List[str]) -> Dict:
 
 
 def check_refusal(answer: str) -> bool:
-    """Verifica se a resposta e uma recusa correta (ignora caixa e acentos)."""
-    return FRASE_RECUSA in _normalize(answer)
+    """Verifica se a resposta e uma recusa correta (ignora caixa e acentos).
+
+    Aceita as duas frases: fora de escopo (curta) e material insuficiente (amigavel)."""
+    norm = _normalize(answer)
+    return any(f in norm for f in FRASES_RECUSA)
 
 
 def check_source(sources: List[str], expected_source: str) -> bool:

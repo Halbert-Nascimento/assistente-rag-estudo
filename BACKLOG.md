@@ -219,6 +219,44 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   0.006; StandardScaler responde com relevancia 0.97. Suite: 33/33.
 - **Arquivos:** `src/chain.py`, `eval/eval.py`, `api.py`, `frontend/chat.jsx`.
 
+### FEAT-005b — Sugestoes por conceito + mensagem de recusa amigavel   [status: resolvido em 16/06/2026 | prioridade: media]
+- **Sintoma:** clicar na sugestao "Me explique os pontos principais de <documento>" levava a uma
+  recusa, mesmo com o documento indexado. A frase de recusa ("Nao encontrei informacao sobre isso
+  nos documentos disponibilizados") era seca e nao orientava o usuario.
+- **Causa raiz:** as sugestoes (FEAT-005) eram geradas a partir do TITULO do documento e pediam um
+  resumo do documento inteiro. RAG recupera fragmentos (top-N), nao resume o todo: o reranker so
+  destaca o chunk do titulo e o LLM, sem material para "os pontos principais", recusa.
+- **Correcao:**
+  1. **Sugestoes por conceito (opcao 3):** `_conceitos_de_doc` extrai conceitos dos cabecalhos de
+     secao (`##`/`###`) dos documentos — ex: "Metodo do Cotovelo", "Epsilon Decay", "Engenharia de
+     Prompt" — filtrando secoes genericas (Visao Geral, Fluxo, Sintese, Desafio...). As perguntas
+     viram "O que e X?" / "Explique X." — especificas e respondiveis pelo RAG.
+  2. **Mensagem de recusa amigavel:** `REFUSAL_MESSAGE` agora explica o motivo provavel e sugere
+     uma acao ("...experimente reformula-la de forma mais especifica..."); prompt (regra 2) e
+     `eval.py` (FRASE_RECUSA = trecho estavel) atualizados.
+- **Validado:** sugestoes geradas dos conceitos das aulas; pao de queijo recusa com a nova
+  mensagem. Suite: 33/33.
+- **Arquivos:** `api.py`, `src/chain.py`, `eval/eval.py`.
+
+### FEAT-005c — Duas mensagens de recusa por motivo + deteccao da recusa do LLM   [status: resolvido em 16/06/2026 | prioridade: media]
+- **Sintoma:** apos FEAT-005b, a mensagem amigavel aparecia TAMBEM nas perguntas claramente fora
+  de escopo (onde a mensagem curta era mais adequada). E quando o LLM recusava apesar de ter
+  contexto, a UI mostrava como "resposta normal" com card de fonte e "Alta confianca 62%" ao lado
+  do texto de recusa (contraditorio).
+- **Causa raiz:** (1) uma unica `REFUSAL_MESSAGE` servia os dois casos; (2) `recusou` era derivado
+  so de `context_chunks == 0`, entao a recusa GERADA pelo LLM (com chunks) nao era detectada.
+- **Correcao:**
+  1. **Duas mensagens por motivo:** `REFUSAL_MESSAGE` (curta) para `motivo="fora_escopo"` (recusa
+     deterministica, nada relevante); `INSUFFICIENT_MESSAGE` (amigavel) para `motivo="insuficiente"`
+     (havia contexto, mas o LLM nao respondeu — ex: resumo do documento inteiro).
+  2. **Deteccao da recusa do LLM:** `_looks_like_refusal` identifica a recusa (mesmo parafraseada);
+     `ask()` passa a devolver `recusou` e `motivo`; oculta as fontes nesse caso (sem "alta confianca"
+     contraditoria). `api.py` propaga `motivo`; `chat.jsx` mostra cabecalho/linha conforme o motivo.
+     `eval.py` reconhece as DUAS frases de recusa.
+- **Validado:** e2e no container — pao de queijo => fora_escopo (curta); resumo da Gerencia =>
+  insuficiente (amigavel), ambos com 0 fontes. Suite: 38/38 (5 novos: motivo + detector).
+- **Arquivos:** `src/chain.py`, `api.py`, `eval/eval.py`, `frontend/chat.jsx`, `tests/run_tests.py`.
+
 ---
 
 ## Resolvidos

@@ -39,7 +39,7 @@ data/                       ← Persistência de runtime (gitignored)
   └── index_manifest.json       hash por arquivo (indexação incremental)
 
 eval/                       ← Avaliação automática (10 perguntas com gabarito)
-tests/                      ← 33 testes de robustez (caminhos de erro)
+tests/                      ← 38 testes de robustez (caminhos de erro)
 ```
 
 ### Fluxo de uma pergunta
@@ -136,7 +136,7 @@ uvicorn api:app --reload --port 8000
 
 | Aba | O que faz |
 |---|---|
-| **Início** | Dashboard: métricas, sugestões de perguntas (baseadas nos últimos documentos), conversas recentes |
+| **Início** | Dashboard: métricas, sugestões de perguntas (sobre conceitos extraídos dos documentos), conversas recentes |
 | **Assistente** | Chat geral — busca em **todos** os documentos |
 | **Temas & Matérias** | Uma matéria por subpasta de `docs/`. Clicar abre um chat **com escopo**: só busca nos documentos daquela matéria |
 | **Documentos** | Tabela de arquivos por matéria; **upload** (vários arquivos, com matéria de destino); botão **Processar Documentos** (incremental — só processa novos/alterados) |
@@ -154,7 +154,7 @@ Detalhes do chat:
 ### Testes e avaliação
 
 ```bash
-# 33 testes de robustez — não requer Ollama
+# 38 testes de robustez — não requer Ollama
 python tests/run_tests.py
 
 # Avaliação de recuperação de contexto — não requer Ollama

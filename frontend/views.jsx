@@ -30,7 +30,7 @@ function Loading({ label }) {
 }
 
 /* ---------------- INÍCIO / DASHBOARD ---------------- */
-function HomeView({ goto, ask, temas, openConversation }) {
+function HomeView({ goto, ask, newChat, temas, openConversation }) {
   const [stats, setStats] = React.useState(null);
   const [historico, setHistorico] = React.useState(null);
 
@@ -78,7 +78,7 @@ function HomeView({ goto, ask, temas, openConversation }) {
         <button
           className="btn btn-accent"
           style={{ padding: "12px 18px", fontSize: 15 }}
-          onClick={() => goto("chat")}
+          onClick={() => newChat()}
         >
           <Icon name="spark" size={18} /> Perguntar ao assistente
         </button>
@@ -1009,7 +1009,7 @@ function DesempenhoView() {
 }
 
 /* ---------------- HISTÓRICO ---------------- */
-function HistoricoView({ goto, temas, openConversation }) {
+function HistoricoView({ goto, newChat, temas, openConversation }) {
   const [conversas, setConversas] = React.useState(null);
 
   const temasList = temas || [];
@@ -1051,7 +1051,7 @@ function HistoricoView({ goto, temas, openConversation }) {
           <button
             className="btn btn-ghost"
             style={{ marginTop: 14, fontSize: 14 }}
-            onClick={() => goto("chat")}
+            onClick={() => newChat()}
           >
             <Icon name="chat" size={16} /> Iniciar uma conversa
           </button>

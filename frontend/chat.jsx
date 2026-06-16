@@ -130,6 +130,7 @@ function ChatView({ seed, resumeId, materia }) {
                     sim: m.sim || 0,
                     relevancia: m.relevancia ?? null,
                     recusou: m.recusou || false,
+                    motivo: m.motivo ?? null,
                   }
             )
           );
@@ -169,6 +170,7 @@ function ChatView({ seed, resumeId, materia }) {
           sim: data.sim || 0,
           relevancia: data.relevancia ?? null,
           recusou: data.recusou,
+          motivo: data.motivo ?? null,
         },
       ]);
     } catch {
@@ -266,28 +268,33 @@ function ChatView({ seed, resumeId, materia }) {
                 {msg.role === "user" ? (
                   <div className="bubble-user">{msg.content}</div>
                 ) : msg.recusou ? (
-                  /* Recusa determinística */
+                  /* Recusa: fora de escopo (curta) OU material insuficiente (amigável) */
                   <div className="refusal">
                     <div className="refusal-head">
-                      <Icon name="shield" size={17} /> Fora do escopo
+                      <Icon name="shield" size={17} />{" "}
+                      {msg.motivo === "insuficiente" ? "Material insuficiente" : "Fora do escopo"}
                     </div>
                     <p>{msg.content}</p>
-                    <div className="why">
-                      <Icon name="alert" size={14} />
-                      {msg.relevancia != null ? (
-                        <>
-                          Relevância máxima dos trechos:{" "}
-                          <strong>{Math.round(msg.relevancia * 100)}%</strong> —
-                          insuficiente para responder
-                        </>
-                      ) : (
-                        <>
-                          Similaridade top-1:{" "}
-                          <strong>{Math.round((msg.sim || 0) * 100)}%</strong> —
-                          abaixo do limiar de 68%
-                        </>
-                      )}
-                    </div>
+                    {/* "Material insuficiente" se explica pela própria mensagem;
+                        a linha de relevância só faz sentido para fora-de-escopo */}
+                    {msg.motivo !== "insuficiente" && (
+                      <div className="why">
+                        <Icon name="alert" size={14} />
+                        {msg.relevancia != null ? (
+                          <>
+                            Relevância máxima dos trechos:{" "}
+                            <strong>{Math.round(msg.relevancia * 100)}%</strong> —
+                            insuficiente para responder
+                          </>
+                        ) : (
+                          <>
+                            Similaridade top-1:{" "}
+                            <strong>{Math.round((msg.sim || 0) * 100)}%</strong> —
+                            abaixo do limiar de 68%
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Resposta normal: corpo + fontes retráteis (BUG-003) */
