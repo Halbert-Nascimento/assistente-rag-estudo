@@ -238,6 +238,25 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   mensagem. Suite: 33/33.
 - **Arquivos:** `api.py`, `src/chain.py`, `eval/eval.py`.
 
+### FEAT-005c — Duas mensagens de recusa por motivo + deteccao da recusa do LLM   [status: resolvido em 16/06/2026 | prioridade: media]
+- **Sintoma:** apos FEAT-005b, a mensagem amigavel aparecia TAMBEM nas perguntas claramente fora
+  de escopo (onde a mensagem curta era mais adequada). E quando o LLM recusava apesar de ter
+  contexto, a UI mostrava como "resposta normal" com card de fonte e "Alta confianca 62%" ao lado
+  do texto de recusa (contraditorio).
+- **Causa raiz:** (1) uma unica `REFUSAL_MESSAGE` servia os dois casos; (2) `recusou` era derivado
+  so de `context_chunks == 0`, entao a recusa GERADA pelo LLM (com chunks) nao era detectada.
+- **Correcao:**
+  1. **Duas mensagens por motivo:** `REFUSAL_MESSAGE` (curta) para `motivo="fora_escopo"` (recusa
+     deterministica, nada relevante); `INSUFFICIENT_MESSAGE` (amigavel) para `motivo="insuficiente"`
+     (havia contexto, mas o LLM nao respondeu — ex: resumo do documento inteiro).
+  2. **Deteccao da recusa do LLM:** `_looks_like_refusal` identifica a recusa (mesmo parafraseada);
+     `ask()` passa a devolver `recusou` e `motivo`; oculta as fontes nesse caso (sem "alta confianca"
+     contraditoria). `api.py` propaga `motivo`; `chat.jsx` mostra cabecalho/linha conforme o motivo.
+     `eval.py` reconhece as DUAS frases de recusa.
+- **Validado:** e2e no container — pao de queijo => fora_escopo (curta); resumo da Gerencia =>
+  insuficiente (amigavel), ambos com 0 fontes. Suite: 38/38 (5 novos: motivo + detector).
+- **Arquivos:** `src/chain.py`, `api.py`, `eval/eval.py`, `frontend/chat.jsx`, `tests/run_tests.py`.
+
 ---
 
 ## Resolvidos

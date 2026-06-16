@@ -268,6 +268,9 @@ def test_chain_refusal():
     check("Pergunta fora do escopo recusada deterministicamente",
           r['answer'] == REFUSAL_MESSAGE and r['context_chunks'] == 0,
           f"answer={r['answer'][:60]}")
+    check("Fora do escopo: recusou=True, motivo='fora_escopo'",
+          r.get('recusou') is True and r.get('motivo') == 'fora_escopo',
+          f"recusou={r.get('recusou')}, motivo={r.get('motivo')}")
 
     r = chain.ask("Qual e a capital da Mongolia?")
     check("Segunda pergunta fora do escopo tambem recusada",
@@ -317,6 +320,18 @@ def test_chain_refusal():
           and r_fora['sources_detail'] == [],
           f"chunks={r_fora['context_chunks']}, top_sim={r_fora.get('top_similarity')}, "
           f"top_rel={r_fora.get('top_relevance')}")
+    check("Fora do escopo reporta motivo='fora_escopo'",
+          r_fora.get('motivo') == 'fora_escopo', f"motivo={r_fora.get('motivo')}")
+
+    # 3d. Detector de recusa do LLM (material insuficiente) — sem Ollama.
+    #     Identifica recusas geradas pelo LLM mesmo quando ele parafraseia.
+    from src.chain import _looks_like_refusal, INSUFFICIENT_MESSAGE
+    check("Detecta a frase de recusa padrao do LLM",
+          _looks_like_refusal(INSUFFICIENT_MESSAGE))
+    check("Detecta parafrase de recusa do LLM",
+          _looks_like_refusal("Não encontrei informação sobre 'Gerência de Projetos' nos documentos."))
+    check("NAO marca uma resposta normal como recusa",
+          not _looks_like_refusal("O StandardScaler coloca as variáveis na mesma escala antes do K-Means."))
 
 
 # ===========================================================================

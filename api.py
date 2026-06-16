@@ -435,7 +435,10 @@ async def chat(req: ChatRequest):
     result = get_chain().ask(pergunta, materia=materia)
     latencia_ms = round((time.perf_counter() - t0) * 1000)
 
-    recusou = result["context_chunks"] == 0
+    # 'recusou' agora vem da chain (cobre fora-de-escopo E material insuficiente);
+    # 'motivo' diferencia os dois para a UI escolher a mensagem/banner certos.
+    recusou = result.get("recusou", result["context_chunks"] == 0)
+    motivo = result.get("motivo")
     answer = _limpa_citacao_inline(result["answer"]) if not recusou else result["answer"]
 
     # Similaridade REAL por arquivo (maior cosseno dos chunks daquela fonte)
@@ -488,6 +491,7 @@ async def chat(req: ChatRequest):
         "sim": top_sim,
         "relevancia": relevancia,
         "recusou": recusou,
+        "motivo": motivo,
         "fontes": fontes,
     })
     conv["msgs"] = len(conv["mensagens"])
@@ -504,6 +508,7 @@ async def chat(req: ChatRequest):
         "sim": top_sim,
         "relevancia": relevancia,
         "recusou": recusou,
+        "motivo": motivo,
         "latencia_ms": latencia_ms,
         "session_id": session_id,
     }
