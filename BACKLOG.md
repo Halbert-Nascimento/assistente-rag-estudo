@@ -219,6 +219,25 @@ prioridade (`alta` | `media` | `baixa`), sintoma/causa raiz e correcao proposta.
   0.006; StandardScaler responde com relevancia 0.97. Suite: 33/33.
 - **Arquivos:** `src/chain.py`, `eval/eval.py`, `api.py`, `frontend/chat.jsx`.
 
+### FEAT-005b — Sugestoes por conceito + mensagem de recusa amigavel   [status: resolvido em 16/06/2026 | prioridade: media]
+- **Sintoma:** clicar na sugestao "Me explique os pontos principais de <documento>" levava a uma
+  recusa, mesmo com o documento indexado. A frase de recusa ("Nao encontrei informacao sobre isso
+  nos documentos disponibilizados") era seca e nao orientava o usuario.
+- **Causa raiz:** as sugestoes (FEAT-005) eram geradas a partir do TITULO do documento e pediam um
+  resumo do documento inteiro. RAG recupera fragmentos (top-N), nao resume o todo: o reranker so
+  destaca o chunk do titulo e o LLM, sem material para "os pontos principais", recusa.
+- **Correcao:**
+  1. **Sugestoes por conceito (opcao 3):** `_conceitos_de_doc` extrai conceitos dos cabecalhos de
+     secao (`##`/`###`) dos documentos — ex: "Metodo do Cotovelo", "Epsilon Decay", "Engenharia de
+     Prompt" — filtrando secoes genericas (Visao Geral, Fluxo, Sintese, Desafio...). As perguntas
+     viram "O que e X?" / "Explique X." — especificas e respondiveis pelo RAG.
+  2. **Mensagem de recusa amigavel:** `REFUSAL_MESSAGE` agora explica o motivo provavel e sugere
+     uma acao ("...experimente reformula-la de forma mais especifica..."); prompt (regra 2) e
+     `eval.py` (FRASE_RECUSA = trecho estavel) atualizados.
+- **Validado:** sugestoes geradas dos conceitos das aulas; pao de queijo recusa com a nova
+  mensagem. Suite: 33/33.
+- **Arquivos:** `api.py`, `src/chain.py`, `eval/eval.py`.
+
 ---
 
 ## Resolvidos

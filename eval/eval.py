@@ -30,7 +30,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 PERGUNTAS_PATH = Path(__file__).parent / 'perguntas_teste.json'
-FRASE_RECUSA   = 'nao encontrei informacao sobre isso nos documentos'
+# Trecho estavel da frase de recusa (REFUSAL_MESSAGE em src/chain.py), normalizado
+# sem acentos. Casa tanto a recusa deterministica quanto a recusa gerada pelo LLM.
+FRASE_RECUSA   = 'nao encontrei material suficiente para responder'
 
 
 # ---------------------------------------------------------------------------

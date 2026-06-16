@@ -136,7 +136,7 @@ uvicorn api:app --reload --port 8000
 
 | Aba | O que faz |
 |---|---|
-| **Início** | Dashboard: métricas, sugestões de perguntas (baseadas nos últimos documentos), conversas recentes |
+| **Início** | Dashboard: métricas, sugestões de perguntas (sobre conceitos extraídos dos documentos), conversas recentes |
 | **Assistente** | Chat geral — busca em **todos** os documentos |
 | **Temas & Matérias** | Uma matéria por subpasta de `docs/`. Clicar abre um chat **com escopo**: só busca nos documentos daquela matéria |
 | **Documentos** | Tabela de arquivos por matéria; **upload** (vários arquivos, com matéria de destino); botão **Processar Documentos** (incremental — só processa novos/alterados) |

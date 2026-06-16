@@ -32,8 +32,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Frase padrao de recusa - usada tanto na recusa deterministica (sem LLM)
-# quanto exigida do LLM via prompt. O eval.py verifica esta frase.
-REFUSAL_MESSAGE = "Nao encontrei informacao sobre isso nos documentos disponibilizados."
+# quanto exigida do LLM via prompt. O eval.py verifica um trecho desta frase.
+# Mensagem amigavel: explica o motivo provavel e sugere uma acao ao usuario.
+REFUSAL_MESSAGE = (
+    "Nos documentos disponibilizados não encontrei material suficiente para "
+    "responder a essa pergunta. Isso costuma acontecer quando o tema não está "
+    "nas aulas indexadas ou quando a pergunta é muito ampla — experimente "
+    "reformulá-la de forma mais específica ou perguntar sobre um tópico das aulas."
+)
 
 # Prompt blindado: o LLM e proibido de alucinar fora dos documentos
 RAG_PROMPT_TEMPLATE = """Voce e um assistente de estudos especializado. Sua unica fonte
@@ -42,7 +48,7 @@ de informacao sao os DOCUMENTOS fornecidos abaixo.
 REGRAS OBRIGATORIAS:
 1. Responda APENAS com base nos DOCUMENTOS. Nao invente, nao suponha.
 2. Se a resposta nao estiver nos documentos, diga exatamente:
-   "Nao encontrei informacao sobre isso nos documentos disponibilizados."
+   "Nos documentos disponibilizados não encontrei material suficiente para responder a essa pergunta. Isso costuma acontecer quando o tema não está nas aulas indexadas ou quando a pergunta é muito ampla — experimente reformulá-la de forma mais específica ou perguntar sobre um tópico das aulas."
 3. NAO cite o nome dos arquivos na resposta (as fontes sao exibidas
    separadamente pela interface).
 4. Responda em portugues do Brasil.
