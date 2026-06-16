@@ -259,4 +259,4 @@ O prompt exige: responder **apenas** com base nos documentos; recusar com frase 
 
 ### Processo de desenvolvimento — BACKLOG.md
 
-Todos os bugs e melhorias são registrados em **`BACKLOG.md`** (sintoma, causa raiz, correção, arquivos) **antes** de serem corrigidos — 9 bugs e 5 melhorias resolvidos até aqui, com 1 item aberto (OCR para PDFs de imagem). O roadmap por fases está em `CLAUDE.md`.
+Todos os bugs e melhorias são registrados em **`BACKLOG.md`** (sintoma, causa raiz, correção, arquivos) **antes** de serem corrigidos — 9 bugs e 5 melhorias resolvidos até aqui, com 1 item aberto (OCR para PDFs de imagem).
